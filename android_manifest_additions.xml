@@ -1,0 +1,15 @@
+<!-- android/app/src/main/AndroidManifest.xml -->
+<!-- Add these permissions inside the <manifest> tag of your existing file -->
+
+<!--
+  PERMISSIONS NEEDED — merge into your existing AndroidManifest.xml:
+
+  <uses-permission android:name="android.permission.CAMERA"/>
+  <uses-permission android:name="android.permission.INTERNET"/>
+
+  Also add inside <application>:
+  android:requestLegacyExternalStorage="true"
+
+  Full uses-feature line (optional but good practice):
+  <uses-feature android:name="android.hardware.camera" android:required="true"/>
+-->
