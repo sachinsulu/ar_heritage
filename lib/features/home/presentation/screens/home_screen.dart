@@ -4,11 +4,35 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../../../core/services/recents_service.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../data/models/monument_model.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  List<MonumentModel> _recents = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRecents();
+  }
+
+  void _loadRecents() {
+    final ids = RecentsService.instance.getRecents();
+    setState(() {
+      _recents = ids
+          .map((id) => MonumentRegistry.findById(id))
+          .whereType<MonumentModel>()
+          .toList();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -58,10 +82,38 @@ class HomeScreen extends StatelessWidget {
               ).animate().fadeIn(delay: 150.ms).slideY(begin: 0.25),
             ),
 
+            // ── Recently Visited ──────────────────────────────────────────
+            if (_recents.isNotEmpty) ...[
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 28, 20, 10),
+                  child: Text(
+                    'RECENTLY VISITED',
+                    style: GoogleFonts.lato(
+                      fontSize: 9, fontWeight: FontWeight.w700,
+                      color: AppColors.gold, letterSpacing: 3,
+                    ),
+                  ),
+                ),
+              ),
+              SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) => _MonumentTile(
+                    monument: _recents[index],
+                    index: index,
+                    onTap: () {
+                      context.push('/monument/${_recents[index].id}').then((_) => _loadRecents());
+                    },
+                  ),
+                  childCount: _recents.length,
+                ),
+              ),
+            ],
+
             // ── Section label ─────────────────────────────────────────────
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 28, 20, 10),
+                padding: EdgeInsets.fromLTRB(20, _recents.isNotEmpty ? 18 : 28, 20, 10),
                 child: Text(
                   'ALL LANDMARKS',
                   style: GoogleFonts.lato(
@@ -78,7 +130,9 @@ class HomeScreen extends StatelessWidget {
                 (context, index) => _MonumentTile(
                   monument: monuments[index],
                   index: index,
-                  onTap: () => context.push('/monument/${monuments[index].id}'),
+                  onTap: () {
+                    context.push('/monument/${monuments[index].id}').then((_) => _loadRecents());
+                  },
                 ),
                 childCount: monuments.length,
               ),
@@ -108,7 +162,7 @@ class _ScanButton extends StatelessWidget {
         borderRadius: BorderRadius.circular(14),
         boxShadow: [
           BoxShadow(
-            color: AppColors.brick.withOpacity(0.35),
+            color: AppColors.brick.withValues(alpha: 0.35),
             blurRadius: 18, offset: const Offset(0, 7),
           ),
         ],
@@ -203,9 +257,9 @@ class _MonumentTile extends StatelessWidget {
             Container(
               width: 44, height: 44,
               decoration: BoxDecoration(
-                color: AppColors.brick.withOpacity(0.18),
+                color: AppColors.brick.withValues(alpha: 0.18),
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: AppColors.brick.withOpacity(0.3)),
+                border: Border.all(color: AppColors.brick.withValues(alpha: 0.3)),
               ),
               child: Icon(icon, color: AppColors.brick2, size: 20),
             ),
@@ -236,9 +290,9 @@ class _MonumentTile extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
               decoration: BoxDecoration(
-                color: AppColors.gold.withOpacity(0.12),
+                color: AppColors.gold.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: AppColors.gold.withOpacity(0.25)),
+                border: Border.all(color: AppColors.gold.withValues(alpha: 0.25)),
               ),
               child: Text(
                 badge,

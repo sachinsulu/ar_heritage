@@ -3,16 +3,28 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../../../core/services/recents_service.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../data/models/monument_model.dart';
 
-class MonumentDetailScreen extends StatelessWidget {
+class MonumentDetailScreen extends StatefulWidget {
   final String monumentId;
   const MonumentDetailScreen({super.key, required this.monumentId});
 
   @override
+  State<MonumentDetailScreen> createState() => _MonumentDetailScreenState();
+}
+
+class _MonumentDetailScreenState extends State<MonumentDetailScreen> {
+  @override
+  void initState() {
+    super.initState();
+    RecentsService.instance.addRecent(widget.monumentId);
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final monument = MonumentRegistry.findById(monumentId);
+    final monument = MonumentRegistry.findById(widget.monumentId);
 
     if (monument == null) {
       return Scaffold(
@@ -113,12 +125,6 @@ class _CarouselHeaderState extends State<_CarouselHeader> {
   int _index = 0;
   final PageController _pageCtrl = PageController();
 
-  void _slide(int dir) {
-    final slides = widget.monument.gallery;
-    int next = (_index + dir + slides.length) % slides.length;
-    _goTo(next);
-  }
-
   void _goTo(int i) {
     setState(() => _index = i);
     _pageCtrl.animateToPage(i,
@@ -186,7 +192,7 @@ class _CarouselHeaderState extends State<_CarouselHeader> {
                     decoration: BoxDecoration(
                       color: i == _index
                           ? AppColors.gold
-                          : Colors.white.withOpacity(0.2),
+                          : Colors.white.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(3),
                     ),
                   ),
@@ -238,31 +244,11 @@ class _Slide extends StatelessWidget {
             data.label,
             style: GoogleFonts.lato(
               fontSize: 10, letterSpacing: 1,
-              color: AppColors.smoke.withOpacity(0.55),
+              color: AppColors.smoke.withValues(alpha: 0.55),
             ),
           ),
         ),
       ],
-    ),
-  );
-}
-
-class _ArrowBtn extends StatelessWidget {
-  final IconData icon;
-  final VoidCallback onTap;
-  const _ArrowBtn({required this.icon, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) => GestureDetector(
-    onTap: onTap,
-    child: Container(
-      width: 30, height: 30,
-      decoration: BoxDecoration(
-        color: const Color(0x990E0F14),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white.withOpacity(0.12)),
-      ),
-      child: Icon(icon, color: AppColors.smoke, size: 16),
     ),
   );
 }
@@ -277,9 +263,9 @@ class _StyleBadge extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
     decoration: BoxDecoration(
-      color: AppColors.brick.withOpacity(0.18),
+      color: AppColors.brick.withValues(alpha: 0.18),
       borderRadius: BorderRadius.circular(5),
-      border: Border.all(color: AppColors.brick.withOpacity(0.4)),
+      border: Border.all(color: AppColors.brick.withValues(alpha: 0.4)),
     ),
     child: Text(
       label.toUpperCase(),
@@ -372,7 +358,7 @@ class _HighlightTile extends StatelessWidget {
           child: Text(
             text,
             style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-              color: AppColors.smoke.withOpacity(0.8),
+              color: AppColors.smoke.withValues(alpha: 0.8),
             ),
           ),
         ),
@@ -391,9 +377,9 @@ class _EarthquakeCard extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.all(13),
     decoration: BoxDecoration(
-      color: AppColors.brick.withOpacity(0.10),
+      color: AppColors.brick.withValues(alpha: 0.10),
       borderRadius: BorderRadius.circular(11),
-      border: Border.all(color: AppColors.brick.withOpacity(0.35)),
+      border: Border.all(color: AppColors.brick.withValues(alpha: 0.35)),
     ),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -416,7 +402,7 @@ class _EarthquakeCard extends StatelessWidget {
         Text(
           note,
           style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-            color: AppColors.smoke.withOpacity(0.65),
+            color: AppColors.smoke.withValues(alpha: 0.65),
           ),
         ),
       ],

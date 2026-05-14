@@ -1,6 +1,6 @@
 // lib/core/utils/classifier.dart
 
-import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:image/image.dart' as img;
 import 'package:tflite_flutter/tflite_flutter.dart';
@@ -30,7 +30,7 @@ class Classifier {
         .toList();
 
     _interpreter = await Interpreter.fromAsset(AppConstants.modelPath);
-    print('[Classifier] Loaded — ${_labels.length} classes');
+    debugPrint('[Classifier] Loaded — ${_labels.length} classes');
   }
 
   ClassificationResult? classify(Uint8List rawBytes) {

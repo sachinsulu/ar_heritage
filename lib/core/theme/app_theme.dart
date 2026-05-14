@@ -64,7 +64,7 @@ class AppTheme {
       ),
       // Lato body
       bodyLarge: GoogleFonts.lato(
-        fontSize: 13, color: AppColors.smoke.withOpacity(0.85), height: 1.65,
+        fontSize: 13, color: AppColors.smoke.withValues(alpha: 0.85), height: 1.65,
       ),
       bodyMedium: GoogleFonts.lato(
         fontSize: 11, color: AppColors.ash, height: 1.5,

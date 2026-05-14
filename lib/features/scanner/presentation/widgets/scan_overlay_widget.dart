@@ -66,7 +66,7 @@ class _ScanOverlayWidgetState extends State<ScanOverlayWidget>
                 fontSize: 9,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 2,
-                color: AppColors.gold.withOpacity(0.55),
+                color: AppColors.gold.withValues(alpha: 0.55),
               ),
             ),
           );
@@ -102,7 +102,7 @@ class _OverlayPainter extends CustomPainter {
       ));
     canvas.drawPath(
       Path.combine(PathOperation.difference, outerPath, innerPath),
-      Paint()..color = Colors.black.withOpacity(0.52),
+      Paint()..color = Colors.black.withValues(alpha: 0.52),
     );
 
     // ── Subtle frame border ────────────────────────────────────────────────
@@ -112,7 +112,7 @@ class _OverlayPainter extends CustomPainter {
         const Radius.circular(4),
       ),
       Paint()
-        ..color = AppColors.gold.withOpacity(0.20)
+        ..color = AppColors.gold.withValues(alpha: 0.20)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1,
     );
@@ -138,9 +138,9 @@ class _OverlayPainter extends CustomPainter {
     final lineY = top + (bottom - top) * scanProgress;
     final linePaint = Paint()
       ..shader = LinearGradient(colors: [
-        AppColors.gold.withOpacity(0),
-        AppColors.gold.withOpacity(0.75),
-        AppColors.gold.withOpacity(0),
+        AppColors.gold.withValues(alpha: 0),
+        AppColors.gold.withValues(alpha: 0.75),
+        AppColors.gold.withValues(alpha: 0),
       ]).createShader(Rect.fromLTWH(left, lineY, right - left, 1))
       ..strokeWidth = 1.0
       ..style = PaintingStyle.stroke;

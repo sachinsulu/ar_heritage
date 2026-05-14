@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'core/theme/app_theme.dart';
 import 'core/utils/app_router.dart';
 import 'core/utils/classifier.dart';
+import 'core/services/recents_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -17,6 +18,7 @@ void main() async {
   ));
 
   await Classifier.instance.init();
+  await RecentsService.instance.init();
 
   runApp(const ArHeritageApp());
 }

@@ -17,7 +17,7 @@ class _SplashScreenState extends State<SplashScreen> {
   void initState() {
     super.initState();
     Future.delayed(const Duration(milliseconds: 2400), () {
-      if (mounted) context.go('/home');
+      if (mounted) context.go('/scanner');
     });
   }
 
@@ -33,9 +33,9 @@ class _SplashScreenState extends State<SplashScreen> {
             Container(
               width: 80, height: 80,
               decoration: BoxDecoration(
-                color: AppColors.brickDust.withOpacity(0.15),
+                color: AppColors.brickDust.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: AppColors.brickDust.withOpacity(0.4)),
+                border: Border.all(color: AppColors.brickDust.withValues(alpha: 0.4)),
               ),
               child: const Icon(
                 Icons.account_balance_rounded,

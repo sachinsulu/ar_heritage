@@ -136,9 +136,16 @@ class _ScannerScreenState extends State<ScannerScreen>
     final ctrl = _cameraController;
     final detected = _detectedMonument != null;
 
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: Stack(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) {
+          context.go('/home');
+        }
+      },
+      child: Scaffold(
+        backgroundColor: Colors.black,
+        body: Stack(
         fit: StackFit.expand,
         children: [
           // ── Camera preview ───────────────────────────────────────────
@@ -151,7 +158,7 @@ class _ScannerScreenState extends State<ScannerScreen>
                 child: Icon(
                   Icons.account_balance_rounded,
                   size: 100,
-                  color: AppColors.gold.withOpacity(0.16),
+                  color: AppColors.gold.withValues(alpha: 0.16),
                 ),
               ),
             ),
@@ -187,7 +194,7 @@ class _ScannerScreenState extends State<ScannerScreen>
           ),
         ],
       ),
-    );
+    ));
   }
 }
 
@@ -351,7 +358,7 @@ class _BottomHandle extends StatelessWidget {
             width: 36, height: 3,
             margin: const EdgeInsets.only(bottom: 14),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.18),
+              color: Colors.white.withValues(alpha: 0.18),
               borderRadius: BorderRadius.circular(2),
             ),
           ),
@@ -520,9 +527,9 @@ class _SimBtn extends StatelessWidget {
     child: Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
+        color: Colors.white.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withOpacity(0.1)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
       ),
       child: Text(
         label,
@@ -544,9 +551,9 @@ class _ConfidenceChip extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
     decoration: BoxDecoration(
-      color: AppColors.green.withOpacity(0.13),
+      color: AppColors.green.withValues(alpha: 0.13),
       borderRadius: BorderRadius.circular(20),
-      border: Border.all(color: AppColors.green.withOpacity(0.35)),
+      border: Border.all(color: AppColors.green.withValues(alpha: 0.35)),
     ),
     child: Row(
       mainAxisSize: MainAxisSize.min,

@@ -3,22 +3,40 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../../../core/services/recents_service.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../data/models/monument_model.dart';
 
-class RecentsSheet extends StatelessWidget {
+class RecentsSheet extends StatefulWidget {
   const RecentsSheet({super.key});
 
   @override
+  State<RecentsSheet> createState() => _RecentsSheetState();
+}
+
+class _RecentsSheetState extends State<RecentsSheet> {
+  List<MonumentModel> _recentMonuments = [];
+  List<MonumentModel> _allMonuments = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _allMonuments = MonumentRegistry.monuments.values.toList();
+    _loadRecents();
+  }
+
+  void _loadRecents() {
+    final ids = RecentsService.instance.getRecents();
+    setState(() {
+      _recentMonuments = ids
+          .map((id) => MonumentRegistry.findById(id))
+          .whereType<MonumentModel>()
+          .toList();
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final monuments = MonumentRegistry.monuments.values.toList();
-    
-    // For prototype purposes, we'll hardcode some "recent" ones
-    final recentMonuments = [
-      monuments[0], // Nyatapola
-      monuments[2], // Golden Gate
-      monuments[1], // 55-Window Palace
-    ];
 
     return Container(
       decoration: const BoxDecoration(
@@ -35,7 +53,7 @@ class RecentsSheet extends StatelessWidget {
               width: 36, height: 3,
               margin: const EdgeInsets.symmetric(vertical: 12),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.18),
+                color: Colors.white.withValues(alpha: 0.18),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -87,13 +105,22 @@ class RecentsSheet extends StatelessWidget {
           const SizedBox(height: 10),
 
           // Recent list
-          ...recentMonuments.map((m) => _RecentTile(
-            monument: m,
-            onTap: () {
-              Navigator.pop(context);
-              context.push('/monument/${m.id}');
-            },
-          )),
+          if (_recentMonuments.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+              child: Text(
+                'No recent scans yet.',
+                style: GoogleFonts.lato(fontSize: 12, color: AppColors.ash),
+              ),
+            )
+          else
+            ..._recentMonuments.map((m) => _RecentTile(
+              monument: m,
+              onTap: () {
+                Navigator.pop(context);
+                context.push('/monument/${m.id}').then((_) => _loadRecents());
+              },
+            )),
 
           // BACK TO SCANNER button
           Padding(
@@ -143,12 +170,12 @@ class RecentsSheet extends StatelessWidget {
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               padding: const EdgeInsets.only(bottom: 20),
-              itemCount: monuments.length,
+              itemCount: _allMonuments.length,
               itemBuilder: (context, index) => _SmallTile(
-                monument: monuments[index],
+                monument: _allMonuments[index],
                 onTap: () {
                   Navigator.pop(context);
-                  context.push('/monument/${monuments[index].id}');
+                  context.push('/monument/${_allMonuments[index].id}').then((_) => _loadRecents());
                 },
               ),
             ),
@@ -182,9 +209,9 @@ class _RecentTile extends StatelessWidget {
             Container(
               width: 40, height: 40,
               decoration: BoxDecoration(
-                color: AppColors.brick.withOpacity(0.18),
+                color: AppColors.brick.withValues(alpha: 0.18),
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: AppColors.brick.withOpacity(0.3)),
+                border: Border.all(color: AppColors.brick.withValues(alpha: 0.3)),
               ),
               child: const Icon(Icons.account_balance_rounded, color: AppColors.brick2, size: 18),
             ),
@@ -208,9 +235,9 @@ class _RecentTile extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
               decoration: BoxDecoration(
-                color: AppColors.gold.withOpacity(0.12),
+                color: AppColors.gold.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: AppColors.gold.withOpacity(0.25)),
+                border: Border.all(color: AppColors.gold.withValues(alpha: 0.25)),
               ),
               child: Text(
                 'Pagoda',
@@ -247,7 +274,7 @@ class _SmallTile extends StatelessWidget {
             Container(
               width: 40, height: 40,
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.05),
+                color: Colors.white.withValues(alpha: 0.05),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: const Icon(Icons.account_balance_rounded, color: AppColors.ash, size: 18),

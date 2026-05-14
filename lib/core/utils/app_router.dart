@@ -12,7 +12,6 @@ final appRouter = GoRouter(
     GoRoute(
       path: '/',
       builder: (_, __) => const SplashScreen(),
-      redirect: (_, __) => '/scanner', // Redirect from splash to scanner
     ),
     GoRoute(
       path: '/home',
