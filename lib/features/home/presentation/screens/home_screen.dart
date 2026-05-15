@@ -4,10 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../../../../core/services/recents_service.dart';
-import '../../../../core/theme/app_theme.dart';
-import '../../../../data/models/monument_model.dart';
-import '../../../../data/services/api_service.dart';
+import 'package:ar_heritage/core/services/recents_service.dart';
+import 'package:ar_heritage/core/theme/app_theme.dart';
+import 'package:ar_heritage/data/models/monument_model.dart';
+import 'package:ar_heritage/data/services/api_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
