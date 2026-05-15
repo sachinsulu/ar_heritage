@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../../core/services/recents_service.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../data/models/monument_model.dart';
+import '../../../../data/services/api_service.dart';
 
 class MonumentDetailScreen extends StatefulWidget {
   final String monumentId;
@@ -16,23 +17,44 @@ class MonumentDetailScreen extends StatefulWidget {
 }
 
 class _MonumentDetailScreenState extends State<MonumentDetailScreen> {
+  late Future<MonumentModel?> _monumentFuture;
+
   @override
   void initState() {
     super.initState();
     RecentsService.instance.addRecent(widget.monumentId);
+    _monumentFuture = _fetchMonument();
+  }
+
+  Future<MonumentModel?> _fetchMonument() async {
+    try {
+      return await ApiService().getMonumentDetail(widget.monumentId);
+    } catch (e) {
+      return MonumentRegistry.findById(widget.monumentId);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final monument = MonumentRegistry.findById(widget.monumentId);
+    return FutureBuilder<MonumentModel?>(
+      future: _monumentFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            backgroundColor: AppColors.deep,
+            body: Center(child: CircularProgressIndicator(color: AppColors.gold)),
+          );
+        }
 
-    if (monument == null) {
-      return Scaffold(
-        backgroundColor: AppColors.deep,
-        appBar: AppBar(title: const Text('Not Found')),
-        body: const Center(child: Text('Monument not found')),
-      );
-    }
+        final monument = snapshot.data;
+
+        if (monument == null) {
+          return Scaffold(
+            backgroundColor: AppColors.deep,
+            appBar: AppBar(title: const Text('Not Found', style: TextStyle(color: Colors.white))),
+            body: const Center(child: Text('Monument not found', style: TextStyle(color: Colors.white))),
+          );
+        }
 
     return Scaffold(
       backgroundColor: AppColors.deep,
@@ -108,6 +130,8 @@ class _MonumentDetailScreenState extends State<MonumentDetailScreen> {
         ],
       ),
     );
+      },
+    );
   }
 }
 
@@ -123,11 +147,24 @@ class _CarouselHeader extends StatefulWidget {
 
 class _CarouselHeaderState extends State<_CarouselHeader> {
   int _index = 0;
-  final PageController _pageCtrl = PageController();
+  late final PageController _pageCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    // Start at a large index to allow backward swiping
+    final int initialPage = widget.monument.gallery.length * 1000;
+    _pageCtrl = PageController(initialPage: initialPage);
+  }
 
   void _goTo(int i) {
+    final slides = widget.monument.gallery;
+    final currentPage = _pageCtrl.page?.round() ?? _pageCtrl.initialPage;
+    final currentSegmentStart = currentPage - (currentPage % slides.length);
+    final targetPage = currentSegmentStart + i;
+
     setState(() => _index = i);
-    _pageCtrl.animateToPage(i,
+    _pageCtrl.animateToPage(targetPage,
       duration: const Duration(milliseconds: 380),
       curve: Curves.easeInOut,
     );
@@ -150,9 +187,8 @@ class _CarouselHeaderState extends State<_CarouselHeader> {
           // ── Slides ─────────────────────────────────────────────────
           PageView.builder(
             controller: _pageCtrl,
-            itemCount: slides.length,
-            onPageChanged: (i) => setState(() => _index = i),
-            itemBuilder: (_, i) => _Slide(data: slides[i]),
+            onPageChanged: (page) => setState(() => _index = page % slides.length),
+            itemBuilder: (_, page) => _Slide(data: slides[page % slides.length]),
           ),
 
           // ── Back button ───────────────────────────────────────────
@@ -225,11 +261,17 @@ class _Slide extends StatelessWidget {
         // Image layer (with opacity to blend with gradient)
         Opacity(
           opacity: 0.45,
-          child: Image.asset(
-            data.path,
-            fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => const SizedBox.shrink(),
-          ),
+          child: data.path.startsWith('http')
+              ? Image.network(
+                  data.path,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                )
+              : Image.asset(
+                  data.path,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                ),
         ),
         
         // Icon overlay

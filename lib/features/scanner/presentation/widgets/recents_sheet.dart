@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../../core/services/recents_service.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../data/models/monument_model.dart';
+import '../../../../data/services/api_service.dart';
 
 class RecentsSheet extends StatefulWidget {
   const RecentsSheet({super.key});
@@ -15,23 +16,25 @@ class RecentsSheet extends StatefulWidget {
 }
 
 class _RecentsSheetState extends State<RecentsSheet> {
-  List<MonumentModel> _recentMonuments = [];
-  List<MonumentModel> _allMonuments = [];
+  late Future<List<MonumentModel>> _monumentsFuture;
 
   @override
   void initState() {
     super.initState();
-    _allMonuments = MonumentRegistry.monuments.values.toList();
-    _loadRecents();
+    _monumentsFuture = _fetchMonuments();
+  }
+
+  Future<List<MonumentModel>> _fetchMonuments() async {
+    try {
+      return await ApiService().getMonuments();
+    } catch (e) {
+      return MonumentRegistry.monuments.values.toList();
+    }
   }
 
   void _loadRecents() {
-    final ids = RecentsService.instance.getRecents();
     setState(() {
-      _recentMonuments = ids
-          .map((id) => MonumentRegistry.findById(id))
-          .whereType<MonumentModel>()
-          .toList();
+      _monumentsFuture = _fetchMonuments();
     });
   }
 
@@ -104,80 +107,102 @@ class _RecentsSheetState extends State<RecentsSheet> {
 
           const SizedBox(height: 10),
 
-          // Recent list
-          if (_recentMonuments.isEmpty)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-              child: Text(
-                'No recent scans yet.',
-                style: GoogleFonts.lato(fontSize: 12, color: AppColors.ash),
-              ),
-            )
-          else
-            ..._recentMonuments.map((m) => _RecentTile(
-              monument: m,
-              onTap: () {
-                Navigator.pop(context);
-                context.push('/monument/${m.id}').then((_) => _loadRecents());
-              },
-            )),
+          // FutureBuilder for content
+          Flexible(
+            child: FutureBuilder<List<MonumentModel>>(
+              future: _monumentsFuture,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(40.0),
+                      child: CircularProgressIndicator(color: AppColors.gold),
+                    ),
+                  );
+                }
 
-          // BACK TO SCANNER button
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
-            child: GestureDetector(
-              onTap: () => Navigator.pop(context),
-              child: Container(
-                height: 42,
-                decoration: BoxDecoration(
-                  color: AppColors.surf,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.border),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
+                final allMonuments = snapshot.data ?? [];
+                final recentIds = RecentsService.instance.getRecents();
+                final recentMonuments = recentIds
+                    .map((id) => allMonuments.firstWhere((m) => m.id == id, orElse: () => MonumentRegistry.findById(id) ?? allMonuments[0])) // simplified fallback
+                    .toList();
+
+                return ListView(
+                  shrinkWrap: true,
                   children: [
-                    const Icon(Icons.camera_alt_outlined, size: 15, color: AppColors.mist),
-                    const SizedBox(width: 8),
-                    Text(
-                      'BACK TO SCANNER',
-                      style: GoogleFonts.lato(
-                        fontSize: 11, letterSpacing: 1.5,
-                        color: AppColors.mist, fontWeight: FontWeight.w700,
+                    // Recent list
+                    if (recentMonuments.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                        child: Text(
+                          'No recent scans yet.',
+                          style: GoogleFonts.lato(fontSize: 12, color: AppColors.ash),
+                        ),
+                      )
+                    else
+                      ...recentMonuments.map((m) => _RecentTile(
+                        monument: m,
+                        onTap: () {
+                          Navigator.pop(context);
+                          context.push('/monument/${m.id}').then((_) => _loadRecents());
+                        },
+                      )),
+
+                    // BACK TO SCANNER button (inline for scrolling or could stay fixed if layout allowed)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                      child: GestureDetector(
+                        onTap: () => Navigator.pop(context),
+                        child: Container(
+                          height: 42,
+                          decoration: BoxDecoration(
+                            color: AppColors.surf,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: AppColors.border),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(Icons.camera_alt_outlined, size: 15, color: AppColors.mist),
+                              const SizedBox(width: 8),
+                              Text(
+                                'BACK TO SCANNER',
+                                style: GoogleFonts.lato(
+                                  fontSize: 11, letterSpacing: 1.5,
+                                  color: AppColors.mist, fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
                     ),
+
+                    // ALL LANDMARKS Label
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 16, 20, 10),
+                      child: Text(
+                        'ALL LANDMARKS',
+                        style: GoogleFonts.lato(
+                          fontSize: 9, letterSpacing: 3,
+                          color: AppColors.gold, fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+
+                    // Remaining landmarks
+                    ...allMonuments.map((m) => _SmallTile(
+                      monument: m,
+                      onTap: () {
+                        Navigator.pop(context);
+                        context.push('/monument/${m.id}').then((_) => _loadRecents());
+                      },
+                    )),
+                    
+                    const SizedBox(height: 20),
                   ],
-                ),
-              ),
-            ),
-          ),
-
-          // ALL LANDMARKS Label
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 10),
-            child: Text(
-              'ALL LANDMARKS',
-              style: GoogleFonts.lato(
-                fontSize: 9, letterSpacing: 3,
-                color: AppColors.gold, fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-
-          // Remaining landmarks
-          Flexible(
-            child: ListView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              padding: const EdgeInsets.only(bottom: 20),
-              itemCount: _allMonuments.length,
-              itemBuilder: (context, index) => _SmallTile(
-                monument: _allMonuments[index],
-                onTap: () {
-                  Navigator.pop(context);
-                  context.push('/monument/${_allMonuments[index].id}').then((_) => _loadRecents());
-                },
-              ),
+                );
+              },
             ),
           ),
         ],

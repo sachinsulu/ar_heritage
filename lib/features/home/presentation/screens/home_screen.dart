@@ -7,6 +7,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../../core/services/recents_service.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../data/models/monument_model.dart';
+import '../../../../data/services/api_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -17,11 +18,21 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   List<MonumentModel> _recents = [];
+  late Future<List<MonumentModel>> _monumentsFuture;
 
   @override
   void initState() {
     super.initState();
     _loadRecents();
+    _monumentsFuture = _fetchMonuments();
+  }
+
+  Future<List<MonumentModel>> _fetchMonuments() async {
+    try {
+      return await ApiService().getMonuments();
+    } catch (e) {
+      return MonumentRegistry.monuments.values.toList();
+    }
   }
 
   void _loadRecents() {
@@ -36,8 +47,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final monuments = MonumentRegistry.monuments.values.toList();
-
     return Scaffold(
       backgroundColor: AppColors.deep,
       body: SafeArea(
@@ -125,17 +134,31 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
 
             // ── Monument tiles ────────────────────────────────────────────
-            SliverList(
-              delegate: SliverChildBuilderDelegate(
-                (context, index) => _MonumentTile(
-                  monument: monuments[index],
-                  index: index,
-                  onTap: () {
-                    context.push('/monument/${monuments[index].id}').then((_) => _loadRecents());
-                  },
-                ),
-                childCount: monuments.length,
-              ),
+            FutureBuilder<List<MonumentModel>>(
+              future: _monumentsFuture,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: Center(child: CircularProgressIndicator(color: AppColors.gold)),
+                  );
+                }
+
+                final monuments = snapshot.data ?? [];
+
+                return SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (context, index) => _MonumentTile(
+                      monument: monuments[index],
+                      index: index,
+                      onTap: () {
+                        context.push('/monument/${monuments[index].id}').then((_) => _loadRecents());
+                      },
+                    ),
+                    childCount: monuments.length,
+                  ),
+                );
+              },
             ),
 
             const SliverToBoxAdapter(child: SizedBox(height: 40)),

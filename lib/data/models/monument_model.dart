@@ -16,6 +16,22 @@ class MonumentGalleryItem {
     required this.color,
     required this.gradient,
   });
+
+  factory MonumentGalleryItem.fromJson(Map<String, dynamic> json) {
+    Color parseHex(String hex) {
+      hex = hex.replaceAll('#', '');
+      if (hex.length == 6) hex = 'FF$hex';
+      return Color(int.parse(hex, radix: 16));
+    }
+
+    return MonumentGalleryItem(
+      path: json['path'] as String,
+      label: json['label'] as String,
+      icon: IconData(json['icon_code'] as int, fontFamily: 'MaterialIcons'),
+      color: parseHex(json['hex_color'] as String),
+      gradient: (json['hex_gradient'] as List).map((h) => parseHex(h as String)).toList(),
+    );
+  }
 }
 
 class MonumentModel {
@@ -52,6 +68,30 @@ class MonumentModel {
     required this.latitude,
     required this.longitude,
   });
+
+  factory MonumentModel.fromJson(Map<String, dynamic> json) {
+    return MonumentModel(
+      id: json['id'] as String,
+      name: json['name'] as String,
+      nepaliName: json['nepali_name'] as String,
+      shortDescription: json['short_description'] as String,
+      fullHistory: json['full_history'] ?? '',
+      architectureStyle: json['architecture_style'] as String,
+      builtYear: json['built_year'] as String,
+      builtBy: json['built_by'] ?? '',
+      earthquakeNote: json['earthquake_note'] ?? '',
+      heightLabel: json['height_label'] as String,
+      highlights: json['highlights'] != null 
+          ? List<String>.from(json['highlights']) 
+          : [],
+      imagePath: json['image_path'] as String,
+      gallery: json['gallery'] != null 
+          ? (json['gallery'] as List).map((i) => MonumentGalleryItem.fromJson(i as Map<String, dynamic>)).toList() 
+          : [],
+      latitude: (json['latitude'] as num).toDouble(),
+      longitude: (json['longitude'] as num).toDouble(),
+    );
+  }
 }
 
 class MonumentRegistry {
@@ -60,7 +100,7 @@ class MonumentRegistry {
   static final Map<String, MonumentModel> monuments = {
     'nyatapola_temple': MonumentModel(
       id: 'nyatapola_temple',
-      name: 'Nyatapola Temple',
+      name: 'Nyatapola test Temple',
       nepaliName: 'न्यातापोला मन्दिर',
       shortDescription: 'The tallest pagoda in Nepal — five tiers of timber and brick rising 30 m above Taumadhi Square.',
       fullHistory:
