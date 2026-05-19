@@ -1,17 +1,19 @@
 // lib/features/scanner/presentation/screens/scanner_screen.dart
 
-import 'dart:typed_data';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../../../../core/constants/app_constants.dart';
+
+import '../../../../core/services/recents_service.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/classifier.dart';
 import '../../../../data/models/monument_model.dart';
+import '../../logic/scanner_cubit.dart';
 import '../widgets/recents_sheet.dart';
 import '../widgets/scan_overlay_widget.dart';
+import '../widgets/shutter_button.dart';
 
 class ScannerScreen extends StatefulWidget {
   const ScannerScreen({super.key});
@@ -22,104 +24,42 @@ class ScannerScreen extends StatefulWidget {
 
 class _ScannerScreenState extends State<ScannerScreen>
     with WidgetsBindingObserver {
-  CameraController? _cameraController;
-  bool _isProcessing = false;
-  int _frameCount = 0;
-
-  ClassificationResult? _lastResult;
-  MonumentModel? _detectedMonument;
+  late final ScannerCubit _cubit;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _initCamera();
+    _cubit = ScannerCubit();
+    _cubit.addListener(_onStateChange);
+    _cubit.init();
   }
 
-  Future<void> _initCamera() async {
-    final cameras = await availableCameras();
-    if (cameras.isEmpty) return;
-
-    _cameraController = CameraController(
-      cameras.first,
-      ResolutionPreset.high,
-      enableAudio: false,
-      imageFormatGroup: ImageFormatGroup.jpeg,
-    );
-
-    await _cameraController!.initialize();
+  void _onStateChange() {
     if (!mounted) return;
-
-    _cameraController!.startImageStream(_onCameraFrame);
-    setState(() {});
-  }
-
-  void _onCameraFrame(CameraImage cameraImage) async {
-    _frameCount++;
-    if (_frameCount % AppConstants.inferenceFrameSkip != 0) return;
-    if (_isProcessing) return;
-    _isProcessing = true;
-
-    try {
-      final bytes = _cameraImageToBytes(cameraImage);
-      if (bytes == null) return;
-
-      final result = Classifier.instance.classify(bytes);
-      if (result == null || !mounted) return;
-
-      final monument = result.isConfident
-          ? MonumentRegistry.findById(result.label)
-          : null;
-
-      if (mounted) {
-        setState(() {
-          _lastResult = result;
-          _detectedMonument = monument;
-        });
-      }
-    } finally {
-      _isProcessing = false;
+    // Save to recents when a monument is detected
+    final state = _cubit.state;
+    if (state.isDetected && state.monument != null) {
+      RecentsService.instance.addRecent(state.monument!.id);
     }
-  }
-
-  Uint8List? _cameraImageToBytes(CameraImage image) {
-    if (image.planes.isEmpty) return null;
-    return image.planes.first.bytes;
+    setState(() {});
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    final ctrl = _cameraController;
-    if (ctrl == null || !ctrl.value.isInitialized) return;
     if (state == AppLifecycleState.inactive) {
-      ctrl.stopImageStream();
+      _cubit.handleAppInactive();
     } else if (state == AppLifecycleState.resumed) {
-      ctrl.startImageStream(_onCameraFrame);
+      _cubit.handleAppResumed();
     }
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _cameraController?.dispose();
+    _cubit.removeListener(_onStateChange);
+    _cubit.dispose();
     super.dispose();
-  }
-
-  void _simulateDetection() {
-    setState(() {
-      _detectedMonument = MonumentRegistry.findById('nyatapola_temple');
-      _lastResult = const ClassificationResult(
-        label: 'nyatapola_temple',
-        confidence: 0.94,
-      );
-    });
-  }
-
-  void _clearDetection() {
-    setState(() {
-      _detectedMonument = null;
-      _lastResult = null;
-    });
   }
 
   void _showRecents() {
@@ -127,83 +67,120 @@ class _ScannerScreenState extends State<ScannerScreen>
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => const RecentsSheet(),
+      builder: (_) => const RecentsSheet(),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final ctrl = _cameraController;
-    final detected = _detectedMonument != null;
+    final ctrl = _cubit.cameraController;
+    final state = _cubit.state;
 
     return PopScope(
       canPop: false,
-      onPopInvokedWithResult: (didPop, result) {
-        if (!didPop) {
-          context.go('/home');
-        }
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) context.go('/home');
       },
       child: Scaffold(
         backgroundColor: Colors.black,
         body: Stack(
-        fit: StackFit.expand,
-        children: [
-          // ── Camera preview ───────────────────────────────────────────
-          if (ctrl != null && ctrl.value.isInitialized)
-            CameraPreview(ctrl)
-          else
-            Container(
-              color: const Color(0xFF0C0E0A),
-              child: Center(
-                child: Icon(
-                  Icons.account_balance_rounded,
-                  size: 100,
-                  color: AppColors.gold.withValues(alpha: 0.16),
+          fit: StackFit.expand,
+          children: [
+            // ── Camera preview ─────────────────────────────────────────
+            if (ctrl != null && ctrl.value.isInitialized)
+              CameraPreview(ctrl)
+            else
+              Container(
+                color: const Color(0xFF0C0E0A),
+                child: Center(
+                  child: Icon(
+                    Icons.account_balance_rounded,
+                    size: 100,
+                    color: AppColors.gold.withValues(alpha: 0.16),
+                  ),
                 ),
+              ),
+
+            // ── Scan frame overlay (static when idle) ──────────────────
+            ScanOverlayWidget(isScanning: state.isScanning),
+
+            // ── Top bar ────────────────────────────────────────────────
+            Positioned(
+              top: 0, left: 0, right: 0,
+              child: _TopBar(
+                autoScanEnabled: state.autoScanEnabled,
+                onRecents: _showRecents,
+                onToggleAutoScan: _cubit.toggleAutoScan,
               ),
             ),
 
-          // ── Scan frame overlay ───────────────────────────────────────
-          const ScanOverlayWidget(),
+            // ── Shutter button (hidden when result shown) ──────────────
+            if (!state.isDetected && !state.isNoMatch)
+              Positioned(
+                bottom: 130,
+                left: 0,
+                right: 0,
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      ShutterButton(
+                        isScanning: state.isScanning,
+                        onTap: _cubit.triggerScan,
+                      ),
+                      const SizedBox(height: 10),
+                      AnimatedOpacity(
+                        opacity: state.isScanning ? 0.0 : 1.0,
+                        duration: const Duration(milliseconds: 250),
+                        child: Text(
+                          state.autoScanEnabled
+                              ? 'Auto-scan on · tap to scan now'
+                              : 'Tap to scan',
+                          style: GoogleFonts.lato(
+                            fontSize: 10,
+                            color: AppColors.mist,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
 
-          // ── Top bar ──────────────────────────────────────────────────
-          Positioned(
-            top: 0, left: 0, right: 0,
-            child: _TopBar(
-              onRecents: _showRecents,
-              onSettings: () {},
+            // ── Bottom result / no-match panel ─────────────────────────
+            Positioned(
+              bottom: 0, left: 0, right: 0,
+              child: _BottomHandle(
+                state: state,
+                onLearnMore: () {
+                  if (state.monument != null) {
+                    context.push('/monument/${state.monument!.id}');
+                  }
+                },
+                onClear: _cubit.clearResult,
+                onOpenRecents: _showRecents,
+              ),
             ),
-          ),
-
-          // ── Bottom handle ────────────────────────────────────────────
-          Positioned(
-            bottom: 0, left: 0, right: 0,
-            child: _BottomHandle(
-              monument: _detectedMonument,
-              result: _lastResult,
-              detected: detected,
-              onLearnMore: () {
-                if (_detectedMonument != null) {
-                  context.push('/monument/${_detectedMonument!.id}');
-                }
-              },
-              onSimulate: _simulateDetection,
-              onClear: _clearDetection,
-              onOpenRecents: _showRecents,
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
-    ));
+    );
   }
 }
 
-// ── Top bar ──────────────────────────────────────────────────────────────────
+// ── Top bar ───────────────────────────────────────────────────────────────────
 
 class _TopBar extends StatelessWidget {
+  const _TopBar({
+    required this.autoScanEnabled,
+    required this.onRecents,
+    required this.onToggleAutoScan,
+  });
+
+  final bool autoScanEnabled;
   final VoidCallback onRecents;
-  final VoidCallback onSettings;
-  const _TopBar({required this.onRecents, required this.onSettings});
+  final VoidCallback onToggleAutoScan;
 
   @override
   Widget build(BuildContext context) {
@@ -220,26 +197,53 @@ class _TopBar extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            // Recents button
+            // Back / recents
             _IBtn(icon: Icons.view_headline_rounded, onTap: onRecents),
 
-            // LIVE indicator
-            Row(
-              children: [
-                const _BlinkDot(),
-                const SizedBox(width: 6),
-                Text(
-                  'LIVE',
-                  style: GoogleFonts.lato(
-                    fontSize: 10, fontWeight: FontWeight.w700,
-                    letterSpacing: 3, color: AppColors.mist,
+            // Auto-scan toggle chip
+            GestureDetector(
+              onTap: onToggleAutoScan,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 250),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: autoScanEnabled
+                      ? AppColors.gold.withValues(alpha: 0.18)
+                      : Colors.white.withValues(alpha: 0.06),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: autoScanEnabled
+                        ? AppColors.gold.withValues(alpha: 0.45)
+                        : Colors.white.withValues(alpha: 0.12),
                   ),
                 ),
-              ],
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      autoScanEnabled
+                          ? Icons.auto_awesome_rounded
+                          : Icons.auto_awesome_outlined,
+                      size: 11,
+                      color: autoScanEnabled ? AppColors.gold : AppColors.ash,
+                    ),
+                    const SizedBox(width: 5),
+                    Text(
+                      autoScanEnabled ? 'AUTO' : 'MANUAL',
+                      style: GoogleFonts.lato(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1.5,
+                        color: autoScanEnabled ? AppColors.gold : AppColors.ash,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
 
-            // Settings button
-            _IBtn(icon: Icons.tune_rounded, onTap: onSettings),
+            // Settings placeholder
+            _IBtn(icon: Icons.tune_rounded, onTap: () {}),
           ],
         ),
       ),
@@ -247,51 +251,7 @@ class _TopBar extends StatelessWidget {
   }
 }
 
-// ── Blinking red dot ─────────────────────────────────────────────────────────
-
-class _BlinkDot extends StatefulWidget {
-  const _BlinkDot();
-
-  @override
-  State<_BlinkDot> createState() => _BlinkDotState();
-}
-
-class _BlinkDotState extends State<_BlinkDot>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _ctrl;
-  late final Animation<double> _opacity;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1400),
-    )..repeat(reverse: true);
-    _opacity = Tween<double>(begin: 1, end: 0.3)
-        .animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut));
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => FadeTransition(
-    opacity: _opacity,
-    child: Container(
-      width: 7, height: 7,
-      decoration: const BoxDecoration(
-        color: Color(0xFFE05252),
-        shape: BoxShape.circle,
-      ),
-    ),
-  );
-}
-
-// ── Rounded icon button (top-bar style) ──────────────────────────────────────
+// ── Rounded icon button ───────────────────────────────────────────────────────
 
 class _IBtn extends StatelessWidget {
   final IconData icon;
@@ -313,92 +273,94 @@ class _IBtn extends StatelessWidget {
   );
 }
 
-// ── Bottom handle ────────────────────────────────────────────────────────────
+// ── Bottom handle ─────────────────────────────────────────────────────────────
 
 class _BottomHandle extends StatelessWidget {
-  final MonumentModel? monument;
-  final ClassificationResult? result;
-  final bool detected;
-  final VoidCallback onLearnMore;
-  final VoidCallback onSimulate;
-  final VoidCallback onClear;
-  final VoidCallback onOpenRecents;
-
   const _BottomHandle({
-    required this.monument,
-    required this.result,
-    required this.detected,
+    required this.state,
     required this.onLearnMore,
-    required this.onSimulate,
     required this.onClear,
     required this.onOpenRecents,
   });
 
+  final ScannerState state;
+  final VoidCallback onLearnMore;
+  final VoidCallback onClear;
+  final VoidCallback onOpenRecents;
+
+  bool get _visible => state.isDetected || state.isNoMatch;
+
   @override
   Widget build(BuildContext context) {
-    return AnimatedContainer(
+    return AnimatedSlide(
+      offset: _visible ? Offset.zero : const Offset(0, 1),
       duration: const Duration(milliseconds: 380),
       curve: Curves.easeOutCubic,
-      decoration: BoxDecoration(
-        color: AppColors.overlay,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
-        border: Border(
-          top: BorderSide(
-            color: detected ? AppColors.gold : AppColors.border,
-            width: detected ? 1.0 : 0.5,
-          ),
-        ),
-      ),
-      padding: const EdgeInsets.fromLTRB(20, 10, 20, 28),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Drag pill
-          Container(
-            width: 36, height: 3,
-            margin: const EdgeInsets.only(bottom: 14),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.18),
-              borderRadius: BorderRadius.circular(2),
+      child: AnimatedOpacity(
+        opacity: _visible ? 1.0 : 0.0,
+        duration: const Duration(milliseconds: 280),
+        child: Container(
+          decoration: BoxDecoration(
+            color: AppColors.overlay,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
+            border: Border(
+              top: BorderSide(
+                color: state.isDetected ? AppColors.gold : AppColors.border,
+                width: state.isDetected ? 1.0 : 0.5,
+              ),
             ),
           ),
+          padding: const EdgeInsets.fromLTRB(20, 10, 20, 28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Drag pill
+              Container(
+                width: 36, height: 3,
+                margin: const EdgeInsets.only(bottom: 14),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.18),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
 
-          // Content
-          detected
-              ? _DetectedContent(
-                  monument: monument!,
-                  result: result!,
+              if (state.isDetected && state.monument != null)
+                _DetectedContent(
+                  monument: state.monument!,
+                  result: state.result!,
                   onLearnMore: onLearnMore,
                   onClear: onClear,
                 )
-              : _IdlePrompt(
-                  onSimulate: onSimulate,
-                  onOpenRecents: onOpenRecents,
-                ),
-        ],
+              else if (state.isNoMatch)
+                _NoMatchContent(onClear: onClear, onOpenRecents: onOpenRecents),
+            ],
+          ),
+        ),
       ),
     );
   }
 }
 
-// ── Idle prompt ───────────────────────────────────────────────────────────────
+// ── No-match content ──────────────────────────────────────────────────────────
 
-class _IdlePrompt extends StatelessWidget {
-  final VoidCallback onSimulate;
-  final VoidCallback onOpenRecents;
-
-  const _IdlePrompt({
-    required this.onSimulate,
+class _NoMatchContent extends StatelessWidget {
+  const _NoMatchContent({
+    required this.onClear,
     required this.onOpenRecents,
   });
+
+  final VoidCallback onClear;
+  final VoidCallback onOpenRecents;
 
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.symmetric(vertical: 4),
     child: Column(
       children: [
+        Icon(Icons.search_off_rounded, color: AppColors.ash, size: 32),
+        const SizedBox(height: 8),
         Text(
-          'Point at a monument',
+          'No monument recognised',
           style: GoogleFonts.cinzel(
             fontSize: 14, color: AppColors.smoke,
             fontWeight: FontWeight.w400,
@@ -406,14 +368,14 @@ class _IdlePrompt extends StatelessWidget {
         ),
         const SizedBox(height: 3),
         Text(
-          'Keep the temple centred and well-lit',
+          'Try moving closer or improving lighting',
           style: Theme.of(context).textTheme.bodyMedium,
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 14),
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            _SimBtn(label: 'simulate detection', onTap: onSimulate),
+            _SimBtn(label: 'try again', onTap: onClear),
             const SizedBox(width: 8),
             _SimBtn(label: 'open recents', onTap: onOpenRecents),
           ],
@@ -423,14 +385,9 @@ class _IdlePrompt extends StatelessWidget {
   );
 }
 
-// ── Detected content ─────────────────────────────────────────────────────────
+// ── Detected content ──────────────────────────────────────────────────────────
 
 class _DetectedContent extends StatelessWidget {
-  final MonumentModel monument;
-  final ClassificationResult result;
-  final VoidCallback onLearnMore;
-  final VoidCallback onClear;
-
   const _DetectedContent({
     required this.monument,
     required this.result,
@@ -438,18 +395,21 @@ class _DetectedContent extends StatelessWidget {
     required this.onClear,
   });
 
+  final MonumentModel monument;
+  final ClassificationResult result;
+  final VoidCallback onLearnMore;
+  final VoidCallback onClear;
+
   @override
   Widget build(BuildContext context) => Column(
     mainAxisSize: MainAxisSize.min,
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      // Green confidence chip
       _ConfidenceChip(
         label: '${(result.confidence * 100).toStringAsFixed(0)}% MATCH',
       ),
       const SizedBox(height: 10),
 
-      // Monument name (Cinzel)
       Text(
         monument.name,
         style: GoogleFonts.cinzel(
@@ -458,7 +418,6 @@ class _DetectedContent extends StatelessWidget {
         ),
       ).animate().fadeIn(duration: 280.ms).slideY(begin: 0.2),
 
-      // Nepali name
       Padding(
         padding: const EdgeInsets.only(top: 3, bottom: 8),
         child: Text(
@@ -470,7 +429,6 @@ class _DetectedContent extends StatelessWidget {
         ),
       ),
 
-      // Short description (2-line clamp)
       Text(
         monument.shortDescription,
         style: Theme.of(context).textTheme.bodyMedium,
@@ -479,7 +437,6 @@ class _DetectedContent extends StatelessWidget {
       ),
       const SizedBox(height: 14),
 
-      // EXPLORE HISTORY button
       GestureDetector(
         onTap: onLearnMore,
         child: Container(
@@ -507,14 +464,12 @@ class _DetectedContent extends StatelessWidget {
         ),
       ),
       const SizedBox(height: 10),
-      Center(
-        child: _SimBtn(label: 'clear detection', onTap: onClear),
-      ),
+      Center(child: _SimBtn(label: 'clear detection', onTap: onClear)),
     ],
   );
 }
 
-// ── Simulation button ─────────────────────────────────────────────────────────
+// ── Small ghost button ────────────────────────────────────────────────────────
 
 class _SimBtn extends StatelessWidget {
   final String label;

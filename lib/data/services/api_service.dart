@@ -5,7 +5,7 @@ import '../models/monument_model.dart';
 class ApiService {
   // Use 10.0.2.2 for Android Emulator, 127.0.0.1 for iOS/Desktop
   // Note: If testing on a physical device, use your machine's local IP (e.g. 192.168.x.x)
-  static const String baseUrl = 'http://10.0.2.2:8000'; 
+  static const String baseUrl = 'http://192.168.18.6:8000';
 
   Future<List<MonumentModel>> getMonuments() async {
     final url = Uri.parse('$baseUrl/monuments');

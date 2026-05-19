@@ -3,26 +3,45 @@
 
 ---
 
+## Model
+
+**`nyatapola_student_v2.tflite`** — Knowledge-distilled student CNN trained from the EfficientNetB0 v4 teacher.
+
+| Property | Value |
+|---|---|
+| Architecture | 4× Conv blocks → GAP → BN → Dense(256) → Dense(64) → Dense(1, sigmoid) |
+| Input shape | `[1, 128, 128, 3]`  float32  normalised `/ 255.0` |
+| Output shape | `[1, 1]`  float32  sigmoid |
+| Classes | `nyatapola_temple` (raw ≈ 0) · `others` (raw ≈ 1) |
+| Threshold | 0.50 |
+| File size | ~1.8 MB |
+
+**Inference logic:**
+- `raw ≤ 0.50` → `nyatapola_temple`, confidence = `1 - raw`
+- `raw > 0.50` → `others`, confidence = `raw`
+
+---
+
 ## Quick Start
 
-### 1. Convert your model
+### 1. Model is already included
+The trained TFLite model is checked in at `assets/models/nyatapola_student_v2.tflite`.  
+To retrain and replace it, use the notebook `nyatapola_student_distillation_v2.ipynb` on Google Colab
+and run the convert script:
+
 ```bash
 pip install tensorflow
 python scripts/convert_model.py \
-  --input  path/to/your_model.h5 \
-  --output assets/models/bhaktapur_model.tflite \
-  --quant   # optional — reduces size ~4x with minimal accuracy loss
+  --input  nyatapola_student_v2_best.keras \
+  --output assets/models/nyatapola_student_v2.tflite
+  # add --quant for INT8 quantisation (~4x smaller, minimal accuracy loss)
 ```
 
-### 2. Verify label order
-Open `assets/models/labels.txt` and ensure the class order matches
-exactly what your model was trained on:
+### 2. Labels file
+`assets/models/labels.txt` must match the model's class order (line 0 = class 0):
 ```
 nyatapola_temple
-55_window_palace
-golden_gate
-bhairavnath_temple
-lions_gate
+others
 ```
 
 ### 3. Add permissions (Android)
@@ -57,19 +76,25 @@ lib/
 │   ├── theme/app_theme.dart           # Colors, fonts, Material theme
 │   └── utils/
 │       ├── classifier.dart            # TFLite inference wrapper
+│       ├── motion_detector.dart       # Luma-plane motion detector (Lens-style)
 │       └── app_router.dart            # go_router navigation
-└── data/
-│   └── models/monument_model.dart    # Data + static landmark registry
 └── features/
     ├── home/                          # Landmark grid + scan CTA
-    ├── scanner/                       # Live camera + inference overlay
+    ├── scanner/
+    │   ├── logic/scanner_cubit.dart   # State machine (idle/scanning/detected/noMatch)
+    │   └── presentation/
+    │       ├── screens/scanner_screen.dart
+    │       └── widgets/
+    │           ├── shutter_button.dart      # Google Lens-style shutter
+    │           ├── scan_overlay_widget.dart # Static brackets, scan line on demand
+    │           └── recents_sheet.dart
     └── monument_detail/               # Full info card with history
 
 assets/
 ├── models/
-│   ├── bhaktapur_model.tflite        # ← drop your converted model here
-│   └── labels.txt                    # class label order
-└── images/monuments/                 # reference images (add your own)
+│   ├── nyatapola_student_v2.tflite   # ← deployed model (1.8 MB)
+│   └── labels.txt                    # class label order (must match model)
+└── images/monuments/                 # reference images
 ```
 
 ---
@@ -78,16 +103,33 @@ assets/
 
 | Parameter | File | Default | Notes |
 |---|---|---|---|
-| Confidence threshold | `app_constants.dart` | 0.70 | Lower = more detections, less accurate |
-| Frame skip | `app_constants.dart` | 10 | Higher = less CPU, slower response |
-| Input size | `app_constants.dart` | 224 | Must match model training size |
+| Confidence threshold | `app_constants.dart` | 0.50 | Lower = more detections, less precise |
+| Auto-scan cooldown | `app_constants.dart` | 1200 ms | Still-scene dwell before auto-scan fires |
+| Scan debounce | `app_constants.dart` | 3000 ms | Min gap between consecutive auto-scans |
+| Motion threshold (MAD) | `app_constants.dart` | 8.0 | Lower = more sensitive to movement |
+| Model input size | `app_constants.dart` | 128 | Must match model training size |
 
 ---
 
-## Next Steps (Sprint 2+)
+## Scanner Architecture (Lens-Style)
+
+The scanner uses a **tap-to-scan** model instead of continuous frame inference:
+
+1. Camera stream runs at full framerate — but **only** feeds the `MotionDetector`
+2. `MotionDetector` does a 16×16 Y-plane thumbnail diff (~0.01 ms/frame)
+3. When the scene is still for ≥8 frames (~267 ms), **or** the user taps the shutter:
+   - Camera stream pauses
+   - Single JPEG snapshot taken via `takePicture()`
+   - Inference runs on a **background isolate** via `compute()`
+   - Stream resumes
+4. Result displayed with slide-up animation
+
+---
+
+## Next Steps
 - [ ] Add `permission_handler` request flow on first launch
 - [ ] Real monument images in `assets/images/monuments/`
+- [ ] Expand model to cover all Bhaktapur Durbar Square landmarks
 - [ ] "Time-Travel" before/after 2015 earthquake image comparison widget
-- [ ] Lottie scan animation (replace custom painter)
 - [ ] Firebase remote config for content updates
 - [ ] Nepali language toggle (i18n)

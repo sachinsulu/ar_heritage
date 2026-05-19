@@ -3,23 +3,36 @@
 class AppConstants {
   AppConstants._();
 
-  static const String modelPath  = 'assets/models/bhaktapur_model.tflite';
+  static const String modelPath  = 'assets/models/nyatapola_student_v2.tflite';
   static const String labelsPath = 'assets/models/labels.txt';
 
   /// Must match the input shape your model was trained on
-  static const int modelInputSize = 224;
+  static const int modelInputSize = 128;
 
   /// Below this confidence we show "Point at a monument"
-  static const double confidenceThreshold = 0.70;
+  static const double confidenceThreshold = 0.50;
 
+  /// Must match labels.txt exactly (model outputs 2 classes)
   static const List<String> classLabels = [
     'nyatapola_temple',
-    '55_window_palace',
-    'golden_gate',
-    'bhairavnath_temple',
-    'lions_gate',
+    'others',
   ];
 
-  /// Run inference every N frames to save battery
-  static const int inferenceFrameSkip = 30;
+  // ── Lens-style scan constants ────────────────────────────────────────────
+
+  /// Milliseconds the scene must be still before an auto-scan fires.
+  static const int autoScanCooldownMs = 1200;
+
+  /// Duration of the shutter-ring animation shown before inference starts.
+  static const int scanAnimationMs = 600;
+
+  /// Minimum milliseconds between two consecutive auto-scan attempts.
+  static const int scanDebounceMs = 3000;
+
+  /// Mean-absolute-difference threshold on the 16×16 luma thumbnail.
+  /// Values below this mean the scene is considered still.
+  static const double motionThreshold = 8.0;
+
+  /// Number of consecutive still frames required before auto-scan fires.
+  static const int stableFramesRequired = 8;
 }

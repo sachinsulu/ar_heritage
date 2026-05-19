@@ -28,6 +28,16 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+
+        // tflite_flutter: only include supported ABIs
+        ndk {
+            abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
+        }
+    }
+
+    // Prevent asset bundler from compressing .tflite files (needed for mmap)
+    androidResources {
+        noCompress += listOf("tflite", "lite")
     }
 
     buildTypes {
