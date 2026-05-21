@@ -5,12 +5,12 @@
 
 ## Model
 
-**`nyatapola_student_v2.tflite`** — Knowledge-distilled student CNN trained from the EfficientNetB0 v4 teacher.
+**`nyatapola_student_v4.tflite`** — Knowledge-distilled student CNN trained from the EfficientNetB0 v4 teacher.
 
 | Property | Value |
 |---|---|
 | Architecture | 4× Conv blocks → GAP → BN → Dense(256) → Dense(64) → Dense(1, sigmoid) |
-| Input shape | `[1, 128, 128, 3]`  float32  normalised `/ 255.0` |
+| Input shape | `[1, 160, 160, 3]`  float32  normalised `/ 255.0` |
 | Output shape | `[1, 1]`  float32  sigmoid |
 | Classes | `nyatapola_temple` (raw ≈ 0) · `others` (raw ≈ 1) |
 | Threshold | 0.50 |
@@ -25,15 +25,15 @@
 ## Quick Start
 
 ### 1. Model is already included
-The trained TFLite model is checked in at `assets/models/nyatapola_student_v2.tflite`.  
+The trained TFLite model is checked in at `assets/models/nyatapola_student_v4.tflite`.  
 To retrain and replace it, use the notebook `nyatapola_student_distillation_v2.ipynb` on Google Colab
 and run the convert script:
 
 ```bash
 pip install tensorflow
 python scripts/convert_model.py \
-  --input  nyatapola_student_v2_best.keras \
-  --output assets/models/nyatapola_student_v2.tflite
+  --input  nyatapola_student_v3_best.keras \
+  --output assets/models/nyatapola_student_v4.tflite
   # add --quant for INT8 quantisation (~4x smaller, minimal accuracy loss)
 ```
 
@@ -92,7 +92,7 @@ lib/
 
 assets/
 ├── models/
-│   ├── nyatapola_student_v2.tflite   # ← deployed model (1.8 MB)
+│   ├── nyatapola_student_v4.tflite   # ← deployed model (1.8 MB)
 │   └── labels.txt                    # class label order (must match model)
 └── images/monuments/                 # reference images
 ```
@@ -107,7 +107,7 @@ assets/
 | Auto-scan cooldown | `app_constants.dart` | 1200 ms | Still-scene dwell before auto-scan fires |
 | Scan debounce | `app_constants.dart` | 3000 ms | Min gap between consecutive auto-scans |
 | Motion threshold (MAD) | `app_constants.dart` | 8.0 | Lower = more sensitive to movement |
-| Model input size | `app_constants.dart` | 128 | Must match model training size |
+| Model input size | `app_constants.dart` | 160 | Must match model training size |
 
 ---
 

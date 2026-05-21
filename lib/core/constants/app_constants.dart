@@ -3,11 +3,11 @@
 class AppConstants {
   AppConstants._();
 
-  static const String modelPath  = 'assets/models/nyatapola_student_v2.tflite';
+  static const String modelPath  = 'assets/models/nyatapola_student_v4.tflite';
   static const String labelsPath = 'assets/models/labels.txt';
 
   /// Must match the input shape your model was trained on
-  static const int modelInputSize = 128;
+  static const int modelInputSize = 160;
 
   /// Below this confidence we show "Point at a monument"
   static const double confidenceThreshold = 0.50;

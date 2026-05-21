@@ -2,20 +2,20 @@
 scripts/convert_model.py
 Convert a trained Keras student model → TFLite for Flutter
 
-Usage (matching the nyatapola_student_v2 pipeline):
+Usage (matching the nyatapola_student_v4 pipeline):
     pip install tensorflow
     python scripts/convert_model.py \
-        --input  nyatapola_student_v2_best.keras \
-        --output assets/models/nyatapola_student_v2.tflite
+        --input  nyatapola_student_v3_best.keras \
+        --output assets/models/nyatapola_student_v4.tflite
 
     # With INT8 dynamic-range quantisation (reduces size ~4x, minimal accuracy loss):
     python scripts/convert_model.py \
-        --input  nyatapola_student_v2_best.keras \
-        --output assets/models/nyatapola_student_v2.tflite \
+        --input  nyatapola_student_v3_best.keras \
+        --output assets/models/nyatapola_student_v4.tflite \
         --quant
 
 Model contract (must match lib/core/constants/app_constants.dart):
-    Input  shape : [1, 128, 128, 3]  float32  normalised to [0, 1] (divide by 255)
+    Input  shape : [1, 160, 160, 3]  float32  normalised to [0, 1] (divide by 255)
     Output shape : [1, 1]            float32  sigmoid
       ~0.0 → nyatapola_temple   (confidence = 1 - raw)
       ~1.0 → others             (confidence = raw)
@@ -32,8 +32,8 @@ def convert(input_path: str, output_path: str, quantize: bool = False):
     print(f"      Input  shape : {model.input_shape}")
     print(f"      Output shape : {model.output_shape}")
 
-    assert model.input_shape == (None, 128, 128, 3), (
-        f"Expected input (None,128,128,3), got {model.input_shape}"
+    assert model.input_shape == (None, 160, 160, 3), (
+        f"Expected input (None,160,160,3), got {model.input_shape}"
     )
     assert model.output_shape == (None, 1), (
         f"Expected output (None,1), got {model.output_shape}"
@@ -55,7 +55,7 @@ def convert(input_path: str, output_path: str, quantize: bool = False):
 
     size_kb = len(tflite_model) / 1024
     print(f"\n✅ Done!  {size_kb:.1f} KB  ({size_kb/1024:.2f} MB)")
-    print(f"   Drop the .tflite file at: assets/models/nyatapola_student_v2.tflite")
+    print(f"   Drop the .tflite file at: assets/models/nyatapola_student_v4.tflite")
     print(f"   Update AppConstants.modelPath if the filename changes.")
 
 

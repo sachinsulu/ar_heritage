@@ -1,8 +1,8 @@
 // lib/core/utils/classifier.dart
 //
-// Model: nyatapola_student_v2.tflite
+// Model: nyatapola_student_v4.tflite
 // Architecture: 4× Conv blocks → GAP → BN → Dense(256) → Dense(64) → Dense(1, sigmoid)
-// Input:  [1, 128, 128, 3]  float32  normalised to [0, 1]  (divide by 255)
+// Input:  [1, 160, 160, 3]  float32  normalised to [0, 1]  (divide by 255)
 // Output: [1, 1]            float32  sigmoid probability
 //   • ~0.0  → nyatapola_temple   (confidence = 1 - raw)
 //   • ~1.0  → others             (confidence = raw)
@@ -12,6 +12,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'app_logger.dart';
 import 'package:image/image.dart' as img;
 import 'package:tflite_flutter/tflite_flutter.dart';
 
@@ -32,7 +33,7 @@ class Classifier {
   Interpreter? _interpreter;
   List<String> _labels = [];
 
-  /// The v2 student model always outputs shape [1, 1] (single sigmoid).
+  /// The v4 student model always outputs shape [1, 1] (single sigmoid).
   /// This flag is set after init() and guards _classifySigmoid path.
   bool _singleSigmoidOutput = false;
   int _outputSize = 1;
@@ -60,26 +61,26 @@ class Classifier {
       _outputSize = outputShape.isNotEmpty ? outputShape.last : 1;
       _singleSigmoidOutput = _outputSize == 1;
 
-      debugPrint('[Classifier] Loaded: ${AppConstants.modelPath}');
-      debugPrint('[Classifier] Input  shape : $inputShape');
-      debugPrint('[Classifier] Output shape : $outputShape');
-      debugPrint(
+      AppLogger.log('[Classifier] Loaded: ${AppConstants.modelPath}');
+      AppLogger.log('[Classifier] Input  shape : $inputShape');
+      AppLogger.log('[Classifier] Output shape : $outputShape');
+      AppLogger.log(
         '[Classifier] Mode: ${_singleSigmoidOutput ? "sigmoid [1,1]" : "softmax [1,$_outputSize]"}'
         '  labels: $_labels',
       );
 
-      // Sanity-check: input must be [1, 128, 128, 3]
+      // Sanity-check: input must be [1, 160, 160, 3]
       if (inputShape.length != 4 ||
           inputShape[1] != AppConstants.modelInputSize ||
           inputShape[2] != AppConstants.modelInputSize ||
           inputShape[3] != 3) {
-        debugPrint(
+        AppLogger.log(
           '[Classifier] ⚠️  Unexpected input shape $inputShape. '
           'Expected [1, ${AppConstants.modelInputSize}, ${AppConstants.modelInputSize}, 3].',
         );
       }
     } catch (e, st) {
-      debugPrint('[Classifier] Init failed: $e\n$st');
+      AppLogger.log('[Classifier] Init failed: $e\n$st');
     }
   }
 
@@ -97,7 +98,7 @@ class Classifier {
     final resized = img.copyResize(image, width: sz, height: sz,
         interpolation: img.Interpolation.linear);
 
-    // Build flat Float32List input: [1, 128, 128, 3]
+    // Build flat Float32List input: [1, 160, 160, 3]
     // Normalise: divide by 255.0  (notebook: img_128 = img_128 / 255.0)
     final inputFlat = Float32List(1 * sz * sz * 3);
     int idx = 0;
@@ -110,7 +111,7 @@ class Classifier {
       }
     }
 
-    // Reshape to [1, 128, 128, 3] as nested List (tflite_flutter requirement)
+    // Reshape to [1, 160, 160, 3] as nested List (tflite_flutter requirement)
     final inputBuffer = inputFlat.buffer.asFloat32List()
         .reshape([1, sz, sz, 3]);
 
@@ -120,12 +121,12 @@ class Classifier {
       }
       return _classifySoftmax(inputBuffer);
     } catch (e, st) {
-      debugPrint('[Classifier] Inference failed: $e\n$st');
+      AppLogger.log('[Classifier] Inference failed: $e\n$st');
       return null;
     }
   }
 
-  // ── Sigmoid path (nyatapola_student_v2) ───────────────────────────────────
+  // ── Sigmoid path (nyatapola_student_v4) ───────────────────────────────────
 
   /// Model output: single sigmoid float.
   ///   raw ≈ 0.0  →  nyatapola   (monumentScore = 1 - raw)
@@ -146,11 +147,13 @@ class Classifier {
     final monumentScore = 1.0 - rawOutput; // P(nyatapola)
     final othersScore   = rawOutput;        // P(others)
 
-    _logScores(monumentScore: monumentScore, othersScore: othersScore);
+    AppLogger.log(
+      '[Classifier] rawOutput = $rawOutput, P(nyatapola) = ${(monumentScore * 100).toStringAsFixed(1)}%, P(others) = ${(othersScore * 100).toStringAsFixed(1)}%',
+    );
 
     if (rawOutput <= (1.0 - AppConstants.confidenceThreshold)) {
       // i.e. monumentScore >= confidenceThreshold
-      debugPrint(
+      AppLogger.log(
         '[Classifier] ✓ DETECTED: $_monumentLabel  '
         '${(monumentScore * 100).toStringAsFixed(1)}%  raw=$rawOutput',
       );
@@ -185,7 +188,7 @@ class Classifier {
     _logScores(monumentScore: monumentScore, othersScore: othersScore);
 
     if (monumentScore >= AppConstants.confidenceThreshold) {
-      debugPrint(
+      AppLogger.log(
         '[Classifier] ✓ DETECTED: $_monumentLabel  '
         '${(monumentScore * 100).toStringAsFixed(1)}%',
       );
@@ -212,10 +215,13 @@ class Classifier {
   ClassificationResult? classify(Uint8List rawBytes) {
     final decoded = img.decodeImage(rawBytes);
     if (decoded == null) {
-      debugPrint('[Classifier] classify(): could not decode image bytes');
+      AppLogger.log('[Classifier] classify(): could not decode image bytes');
       return null;
     }
-    return classifyImage(decoded);
+    // Bake the EXIF orientation into the physical image pixels so it is upright
+    final oriented = img.bakeOrientation(decoded);
+    AppLogger.log('[Classifier] classify(): decoded image size = ${oriented.width}x${oriented.height}');
+    return classifyImage(oriented);
   }
 
   // ── Throttled debug logging ───────────────────────────────────────────────
@@ -227,7 +233,7 @@ class Classifier {
     final now = DateTime.now();
     if (now.difference(_lastLog).inMilliseconds <= 1000) return;
     _lastLog = now;
-    debugPrint(
+    AppLogger.log(
       '[Classifier] RAW → $_monumentLabel: ${(monumentScore * 100).toStringAsFixed(1)}%'
       '  |  $_othersLabel: ${(othersScore * 100).toStringAsFixed(1)}%',
     );

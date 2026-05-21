@@ -108,9 +108,7 @@ class _ScannerScreenState extends State<ScannerScreen>
             Positioned(
               top: 0, left: 0, right: 0,
               child: _TopBar(
-                autoScanEnabled: state.autoScanEnabled,
                 onRecents: _showRecents,
-                onToggleAutoScan: _cubit.toggleAutoScan,
               ),
             ),
 
@@ -133,9 +131,7 @@ class _ScannerScreenState extends State<ScannerScreen>
                         opacity: state.isScanning ? 0.0 : 1.0,
                         duration: const Duration(milliseconds: 250),
                         child: Text(
-                          state.autoScanEnabled
-                              ? 'Auto-scan on · tap to scan now'
-                              : 'Tap to scan',
+                          'Tap to capture & identify',
                           style: GoogleFonts.lato(
                             fontSize: 10,
                             color: AppColors.mist,
@@ -173,14 +169,10 @@ class _ScannerScreenState extends State<ScannerScreen>
 
 class _TopBar extends StatelessWidget {
   const _TopBar({
-    required this.autoScanEnabled,
     required this.onRecents,
-    required this.onToggleAutoScan,
   });
 
-  final bool autoScanEnabled;
   final VoidCallback onRecents;
-  final VoidCallback onToggleAutoScan;
 
   @override
   Widget build(BuildContext context) {
@@ -197,53 +189,27 @@ class _TopBar extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            // Back / recents
-            _IBtn(icon: Icons.view_headline_rounded, onTap: onRecents),
+            // Recents button
+            _IBtn(
+              icon: Icons.history_rounded,
+              onTap: onRecents,
+            ),
 
-            // Auto-scan toggle chip
-            GestureDetector(
-              onTap: onToggleAutoScan,
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 250),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: autoScanEnabled
-                      ? AppColors.gold.withValues(alpha: 0.18)
-                      : Colors.white.withValues(alpha: 0.06),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: autoScanEnabled
-                        ? AppColors.gold.withValues(alpha: 0.45)
-                        : Colors.white.withValues(alpha: 0.12),
-                  ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      autoScanEnabled
-                          ? Icons.auto_awesome_rounded
-                          : Icons.auto_awesome_outlined,
-                      size: 11,
-                      color: autoScanEnabled ? AppColors.gold : AppColors.ash,
-                    ),
-                    const SizedBox(width: 5),
-                    Text(
-                      autoScanEnabled ? 'AUTO' : 'MANUAL',
-                      style: GoogleFonts.lato(
-                        fontSize: 9,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 1.5,
-                        color: autoScanEnabled ? AppColors.gold : AppColors.ash,
-                      ),
-                    ),
-                  ],
-                ),
+            Text(
+              'IDENTIFY MONUMENT',
+              style: GoogleFonts.cinzel(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: AppColors.gold,
+                letterSpacing: 2,
               ),
             ),
 
-            // Settings placeholder
-            _IBtn(icon: Icons.tune_rounded, onTap: () {}),
+            // Close button
+            _IBtn(
+              icon: Icons.close_rounded,
+              onTap: () => context.go('/home'),
+            ),
           ],
         ),
       ),
