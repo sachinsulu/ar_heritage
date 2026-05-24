@@ -1,135 +1,191 @@
 # Smarter Heritage – Bhaktapur CV Guide
-### AR & Computer Vision guide for Bhaktapur Durbar Square
+
+On-device monument recognition for Bhaktapur Durbar Square. Point the camera at **Nyatapola Temple** to identify it offline; browse other landmarks from the home screen.
+
+**Stack:** Flutter · TensorFlow Lite · `camera` · `go_router`
+
+---
+
+## Features
+
+- **Scanner** — Full-screen camera preview, gold heritage UI, shutter capture, on-device classification
+- **Match panel** — Animated slide-up result sheet (detected / no match)
+- **Monument detail** — History, images, and explore flow
+- **Recents** — Recently viewed monuments (local storage)
+- **Optional API** — Load monument list from a backend via `dart-define`
 
 ---
 
 ## Model
 
-**`nyatapola_student_v4.tflite`** — Knowledge-distilled student CNN trained from the EfficientNetB0 v4 teacher.
+**`assets/models/nyatapola_student_v4.tflite`** — Knowledge-distilled student CNN (Nyatapola vs others).
 
 | Property | Value |
 |---|---|
-| Architecture | 4× Conv blocks → GAP → BN → Dense(256) → Dense(64) → Dense(1, sigmoid) |
-| Input shape | `[1, 160, 160, 3]`  float32  normalised `/ 255.0` |
-| Output shape | `[1, 1]`  float32  sigmoid |
-| Classes | `nyatapola_temple` (raw ≈ 0) · `others` (raw ≈ 1) |
-| Threshold | 0.50 |
-| File size | ~1.8 MB |
+| Input shape | `[1, 160, 160, 3]` float32, pixels `/ 255.0` |
+| Output | `[1, 1]` sigmoid |
+| Classes | `nyatapola_temple` (low raw ≈ 0) · `others` (high raw ≈ 1) |
+| App threshold | **0.80** (tune in `app_constants.dart`) |
 
-**Inference logic:**
-- `raw ≤ 0.50` → `nyatapola_temple`, confidence = `1 - raw`
-- `raw > 0.50` → `others`, confidence = `raw`
+Only **Nyatapola Temple** is recognised by on-device CV today. Other landmarks are browse-only.
+
+**Sigmoid mapping:** `P(nyatapola) = 1 - raw`, `P(others) = raw`. A match requires label `nyatapola_temple` and confidence ≥ threshold.
 
 ---
 
-## Quick Start
+## App icon
 
-### 1. Model is already included
-The trained TFLite model is checked in at `assets/models/nyatapola_student_v4.tflite`.  
-To retrain and replace it, use the notebook `nyatapola_student_distillation_v2.ipynb` on Google Colab
-and run the convert script:
+Launcher icon source: `assets/icon/app_icon.png` (gold pagoda on dark heritage palette).
+
+Regenerate all Android densities after changing the artwork:
 
 ```bash
-pip install tensorflow
-python scripts/convert_model.py \
-  --input  nyatapola_student_v3_best.keras \
-  --output assets/models/nyatapola_student_v4.tflite
-  # add --quant for INT8 quantisation (~4x smaller, minimal accuracy loss)
+dart run flutter_launcher_icons
 ```
 
-### 2. Labels file
-`assets/models/labels.txt` must match the model's class order (line 0 = class 0):
-```
-nyatapola_temple
-others
-```
+---
 
-### 3. Add permissions (Android)
-In `android/app/src/main/AndroidManifest.xml`, add inside `<manifest>`:
-```xml
-<uses-permission android:name="android.permission.CAMERA"/>
-<uses-permission android:name="android.permission.INTERNET"/>
-<uses-feature android:name="android.hardware.camera" android:required="true"/>
-```
-And in the `<activity>` tag add: `android:hardwareAccelerated="true"`
+## Quick start
 
-For iOS add to `ios/Runner/Info.plist`:
-```xml
-<key>NSCameraUsageDescription</key>
-<string>Camera is needed to identify Bhaktapur monuments</string>
-```
+**Requirements:** Flutter 3.44+ (stable), Android device or emulator with camera.
 
-### 4. Install & run
 ```bash
 flutter pub get
 flutter run
 ```
 
+**Release build (device):**
+
+```bash
+flutter run --release
+# or
+flutter build apk --release
+```
+
+Output: `build/app/outputs/flutter-apk/app-release.apk`
+
+### Optional: backend API
+
+Offline mode uses built-in `MonumentRegistry` data. To load monuments from your server:
+
+```bash
+# Android emulator → host machine
+flutter run --dart-define=API_BASE_URL=http://10.0.2.2:8000
+
+# Physical device → your LAN IP
+flutter run --dart-define=API_BASE_URL=http://192.168.1.10:8000
+
+# Remote logging (dev only)
+flutter run \
+  --dart-define=API_BASE_URL=http://10.0.2.2:8000 \
+  --dart-define=ENABLE_REMOTE_LOGGING=true
+```
+
+Cleartext HTTP is allowed in **debug** builds only (`android/app/src/debug/AndroidManifest.xml`).
+
+### Permissions
+
+- **Android:** `CAMERA` + `INTERNET` in `AndroidManifest.xml`; runtime camera permission when opening the scanner.
+- **iOS:** Not included in this repo yet (Android-only).
+
 ---
 
-## Project Structure
+## Scanner flow
+
+1. Open scanner → request camera permission if needed → back camera preview.
+2. Tap shutter → `takePicture()` JPEG.
+3. Decode + resize in a background isolate (`classifier_preprocess.dart` via `compute`).
+4. TFLite inference on the main isolate (interpreter is not isolate-safe).
+5. If confident match → animated result sheet; else no-match panel.
+
+If the model fails at startup, the scanner shows an error with **Retry**.
+
+**UI notes:** Heritage top bar (compass → recents), bottom dock (Time-Travel → monument detail, sparkle → scan tips), gold corner brackets overlay.
+
+---
+
+## Project structure
+
 ```
 lib/
-├── main.dart                          # Entry point, model init
+├── main.dart
 ├── core/
-│   ├── constants/app_constants.dart   # Model path, class labels, thresholds
-│   ├── theme/app_theme.dart           # Colors, fonts, Material theme
+│   ├── bootstrap/app_bootstrap.dart
+│   ├── config/app_config.dart
+│   ├── constants/app_constants.dart
+│   ├── services/
+│   │   ├── permission_service.dart
+│   │   └── recents_service.dart
+│   ├── theme/app_theme.dart
 │   └── utils/
-│       ├── classifier.dart            # TFLite inference wrapper
-│       ├── motion_detector.dart       # Luma-plane motion detector (Lens-style)
-│       └── app_router.dart            # go_router navigation
+│       ├── app_router.dart
+│       ├── classifier.dart
+│       └── classifier_preprocess.dart
+├── data/
+│   ├── models/monument_model.dart
+│   └── services/api_service.dart
 └── features/
-    ├── home/                          # Landmark grid + scan CTA
+    ├── splash/
+    ├── home/
     ├── scanner/
-    │   ├── logic/scanner_cubit.dart   # State machine (idle/scanning/detected/noMatch)
+    │   ├── logic/scanner_cubit.dart
     │   └── presentation/
     │       ├── screens/scanner_screen.dart
     │       └── widgets/
-    │           ├── shutter_button.dart      # Google Lens-style shutter
-    │           ├── scan_overlay_widget.dart # Static brackets, scan line on demand
+    │           ├── scan_overlay_widget.dart
+    │           ├── scanner_control_dock.dart
+    │           ├── scanner_top_bar.dart
+    │           ├── scanner_heritage_icons.dart
+    │           ├── shutter_button.dart
     │           └── recents_sheet.dart
-    └── monument_detail/               # Full info card with history
+    └── monument_detail/
 
 assets/
-├── models/
-│   ├── nyatapola_student_v4.tflite   # ← deployed model (1.8 MB)
-│   └── labels.txt                    # class label order (must match model)
-└── images/monuments/                 # reference images
+├── models/          # .tflite + labels.txt
+└── images/monuments/
+
+android/             # Android host (Kotlin DSL)
+test/                # classifier_logic_test.dart
+scripts/             # convert_model.py
 ```
 
 ---
 
 ## Tuning
 
-| Parameter | File | Default | Notes |
-|---|---|---|---|
-| Confidence threshold | `app_constants.dart` | 0.50 | Lower = more detections, less precise |
-| Auto-scan cooldown | `app_constants.dart` | 1200 ms | Still-scene dwell before auto-scan fires |
-| Scan debounce | `app_constants.dart` | 3000 ms | Min gap between consecutive auto-scans |
-| Motion threshold (MAD) | `app_constants.dart` | 8.0 | Lower = more sensitive to movement |
-| Model input size | `app_constants.dart` | 160 | Must match model training size |
+| Parameter | File | Default |
+|---|---|---|
+| Confidence threshold | `lib/core/constants/app_constants.dart` | `0.80` |
+| Pre-inference shutter delay | same | `600` ms |
+| Model input size | same | `160` |
+| Result sheet slide duration | `scanner_screen.dart` (`_kPanelSlideMs`) | `620` ms |
+
+Lower threshold → more detections (more false positives). Raise threshold → stricter matching.
 
 ---
 
-## Scanner Architecture (Lens-Style)
+## Tests & analysis
 
-The scanner uses a **tap-to-scan** model instead of continuous frame inference:
-
-1. Camera stream runs at full framerate — but **only** feeds the `MotionDetector`
-2. `MotionDetector` does a 16×16 Y-plane thumbnail diff (~0.01 ms/frame)
-3. When the scene is still for ≥8 frames (~267 ms), **or** the user taps the shutter:
-   - Camera stream pauses
-   - Single JPEG snapshot taken via `takePicture()`
-   - Inference runs on a **background isolate** via `compute()`
-   - Stream resumes
-4. Result displayed with slide-up animation
+```bash
+flutter test
+flutter analyze
+```
 
 ---
 
-## Next Steps
-- [ ] Add `permission_handler` request flow on first launch
-- [ ] Real monument images in `assets/images/monuments/`
-- [ ] Expand model to cover all Bhaktapur Durbar Square landmarks
-- [ ] "Time-Travel" before/after 2015 earthquake image comparison widget
-- [ ] Firebase remote config for content updates
-- [ ] Nepali language toggle (i18n)
+## Android build notes
+
+You may see **Kotlin Gradle Plugin (KGP) migration** warnings when building. They are informational for now; the app still builds. See [Flutter: migrate to built-in Kotlin](https://docs.flutter.dev/release/breaking-changes/migrate-to-built-in-kotlin/for-app-developers) before a future Flutter release requires migration.
+
+`android/local.properties` and Gradle caches are gitignored — run `flutter pub get` after clone.
+
+---
+
+## Roadmap
+
+- [ ] Expand CV model to more landmarks
+- [ ] Hard-negative training (screens, indoor clutter) to reduce false positives
+- [ ] Time-Travel AR experience (UI placeholder wired to monument detail)
+- [ ] Additional monument photos in `assets/images/monuments/`
+- [ ] iOS platform support
+- [ ] Release signing + HTTPS API for production

@@ -6,9 +6,7 @@
 // Output: [1, 1]            float32  sigmoid probability
 //   • ~0.0  → nyatapola_temple   (confidence = 1 - raw)
 //   • ~1.0  → others             (confidence = raw)
-// Threshold: 0.50 (student trained with this threshold)
-
-import 'dart:typed_data';
+// Threshold: see AppConstants.confidenceThreshold (app-side, stricter than training default)
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -32,6 +30,11 @@ class Classifier {
 
   Interpreter? _interpreter;
   List<String> _labels = [];
+  bool _ready = false;
+  String? _initError;
+
+  bool get isReady => _ready;
+  String? get initError => _initError;
 
   /// The v4 student model always outputs shape [1, 1] (single sigmoid).
   /// This flag is set after init() and guards _classifySigmoid path.
@@ -45,7 +48,9 @@ class Classifier {
 
   // ── Initialise ────────────────────────────────────────────────────────────
 
-  Future<void> init() async {
+  Future<bool> init() async {
+    _ready = false;
+    _initError = null;
     try {
       final labelData = await rootBundle.loadString(AppConstants.labelsPath);
       _labels = labelData
@@ -79,8 +84,30 @@ class Classifier {
           'Expected [1, ${AppConstants.modelInputSize}, ${AppConstants.modelInputSize}, 3].',
         );
       }
+      _ready = true;
+      return true;
     } catch (e, st) {
+      _initError = e.toString();
       AppLogger.log('[Classifier] Init failed: $e\n$st');
+      return false;
+    }
+  }
+
+  /// Runs TFLite on a preprocessed flat tensor (see [classifier_preprocess.dart]).
+  ClassificationResult? classifyFromTensor(Float32List inputFlat) {
+    if (!_ready || _interpreter == null) return null;
+
+    final int sz = AppConstants.modelInputSize;
+    final inputBuffer = inputFlat.buffer.asFloat32List().reshape([1, sz, sz, 3]);
+
+    try {
+      if (_singleSigmoidOutput) {
+        return _classifySigmoid(inputBuffer);
+      }
+      return _classifySoftmax(inputBuffer);
+    } catch (e, st) {
+      AppLogger.log('[Classifier] Inference failed: $e\n$st');
+      return null;
     }
   }
 
@@ -143,22 +170,34 @@ class Classifier {
     final rawOutput =
         (outputBuffer[0][0] as num).toDouble().clamp(0.0, 1.0);
 
-    // raw ~ 0 → nyatapola, raw ~ 1 → others
-    final monumentScore = 1.0 - rawOutput; // P(nyatapola)
-    final othersScore   = rawOutput;        // P(others)
+    return mapSigmoidOutput(rawOutput, logScores: true);
+  }
 
-    AppLogger.log(
-      '[Classifier] rawOutput = $rawOutput, P(nyatapola) = ${(monumentScore * 100).toStringAsFixed(1)}%, P(others) = ${(othersScore * 100).toStringAsFixed(1)}%',
-    );
+  /// Maps a single sigmoid output to a [ClassificationResult] (testable).
+  @visibleForTesting
+  static ClassificationResult mapSigmoidOutput(
+    double rawOutput, {
+    bool logScores = false,
+  }) {
+    final clamped = rawOutput.clamp(0.0, 1.0);
+    final monumentScore = 1.0 - clamped;
+    final othersScore = clamped;
 
-    if (rawOutput <= (1.0 - AppConstants.confidenceThreshold)) {
-      // i.e. monumentScore >= confidenceThreshold
+    if (logScores) {
       AppLogger.log(
-        '[Classifier] ✓ DETECTED: $_monumentLabel  '
-        '${(monumentScore * 100).toStringAsFixed(1)}%  raw=$rawOutput',
+        '[Classifier] rawOutput = $clamped, P(nyatapola) = ${(monumentScore * 100).toStringAsFixed(1)}%, P(others) = ${(othersScore * 100).toStringAsFixed(1)}%',
       );
+    }
+
+    if (clamped <= (1.0 - AppConstants.confidenceThreshold)) {
+      if (logScores) {
+        AppLogger.log(
+          '[Classifier] ✓ DETECTED: $_monumentLabel  '
+          '${(monumentScore * 100).toStringAsFixed(1)}%  raw=$clamped',
+        );
+      }
       return ClassificationResult(
-        label:      _monumentLabel,
+        label: _monumentLabel,
         confidence: monumentScore,
       );
     }

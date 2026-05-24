@@ -9,8 +9,8 @@ class AppConstants {
   /// Must match the input shape your model was trained on
   static const int modelInputSize = 160;
 
-  /// Below this confidence we show "Point at a monument"
-  static const double confidenceThreshold = 0.50;
+  /// Below this confidence we treat the scan as no match (reduces false positives).
+  static const double confidenceThreshold = 0.80;
 
   /// Must match labels.txt exactly (model outputs 2 classes)
   static const List<String> classLabels = [
@@ -18,21 +18,10 @@ class AppConstants {
     'others',
   ];
 
-  // ── Lens-style scan constants ────────────────────────────────────────────
-
-  /// Milliseconds the scene must be still before an auto-scan fires.
-  static const int autoScanCooldownMs = 1200;
+  /// Monuments the on-device CV model can recognise today.
+  static const Set<String> cvDetectableIds = {'nyatapola_temple'};
 
   /// Duration of the shutter-ring animation shown before inference starts.
   static const int scanAnimationMs = 600;
-
-  /// Minimum milliseconds between two consecutive auto-scan attempts.
-  static const int scanDebounceMs = 3000;
-
-  /// Mean-absolute-difference threshold on the 16×16 luma thumbnail.
-  /// Values below this mean the scene is considered still.
-  static const double motionThreshold = 8.0;
-
-  /// Number of consecutive still frames required before auto-scan fires.
-  static const int stableFramesRequired = 8;
 }
+

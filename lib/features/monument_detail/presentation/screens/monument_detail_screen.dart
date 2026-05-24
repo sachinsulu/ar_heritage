@@ -58,8 +58,10 @@ class _MonumentDetailScreenState extends State<MonumentDetailScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.deep,
-      body: CustomScrollView(
-        slivers: [
+      body: Stack(
+        children: [
+          CustomScrollView(
+            slivers: [
           // ── Image carousel header ──────────────────────────────────────
           SliverToBoxAdapter(
             child: _CarouselHeader(monument: monument),
@@ -127,6 +129,41 @@ class _MonumentDetailScreenState extends State<MonumentDetailScreen> {
               ]),
             ),
           ),
+            ],
+          ),
+          // ── Persistent back button ──────────────────────────────────
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: SafeArea(
+              bottom: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(14, 8, 14, 0),
+                child: Row(
+                  children: [
+                    GestureDetector(
+                      onTap: () => Navigator.of(context).pop(),
+                      child: Container(
+                        width: 38,
+                        height: 38,
+                        decoration: BoxDecoration(
+                          color: const Color(0xCC0E0F14),
+                          borderRadius: BorderRadius.circular(11),
+                          border: Border.all(color: Colors.white12),
+                        ),
+                        child: const Icon(
+                          Icons.arrow_back_ios_new_rounded,
+                          color: AppColors.smoke,
+                          size: 14,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -149,22 +186,35 @@ class _CarouselHeaderState extends State<_CarouselHeader> {
   int _index = 0;
   late final PageController _pageCtrl;
 
+  List<MonumentGalleryItem> get _slides {
+    if (widget.monument.gallery.isNotEmpty) return widget.monument.gallery;
+    return [
+      MonumentGalleryItem(
+        path: widget.monument.imagePath,
+        label: widget.monument.name.toUpperCase(),
+        iconCode: 62751,
+        color: const Color(0x59C9A84C),
+        gradient: const [Color(0xFF1A0C06), Color(0xFF2A1A0A)],
+      ),
+    ];
+  }
+
   @override
   void initState() {
     super.initState();
-    // Start at a large index to allow backward swiping
-    final int initialPage = widget.monument.gallery.length * 1000;
+    final int initialPage = _slides.length * 1000;
     _pageCtrl = PageController(initialPage: initialPage);
   }
 
   void _goTo(int i) {
-    final slides = widget.monument.gallery;
-    final currentPage = _pageCtrl.page?.round() ?? _pageCtrl.initialPage;
-    final currentSegmentStart = currentPage - (currentPage % slides.length);
-    final targetPage = currentSegmentStart + i;
-
     setState(() => _index = i);
-    _pageCtrl.animateToPage(targetPage,
+    // Find the nearest page that maps to index i, starting from current position
+    final current = _pageCtrl.page?.round() ?? _pageCtrl.initialPage;
+    final slideCount = _slides.length;
+    final base = current - (current % slideCount);
+    final target = base + i;
+    _pageCtrl.animateToPage(
+      target,
       duration: const Duration(milliseconds: 380),
       curve: Curves.easeInOut,
     );
@@ -178,10 +228,10 @@ class _CarouselHeaderState extends State<_CarouselHeader> {
 
   @override
   Widget build(BuildContext context) {
-    final slides = widget.monument.gallery;
+    final slides = _slides;
 
     return SizedBox(
-      height: 240,
+      height: 300,
       child: Stack(
         children: [
           // ── Slides ─────────────────────────────────────────────────
@@ -190,26 +240,6 @@ class _CarouselHeaderState extends State<_CarouselHeader> {
             onPageChanged: (page) => setState(() => _index = page % slides.length),
             itemBuilder: (_, page) => _Slide(data: slides[page % slides.length]),
           ),
-
-          // ── Back button ───────────────────────────────────────────
-          Positioned(
-            top: MediaQuery.of(context).padding.top + 12,
-            left: 14,
-            child: GestureDetector(
-              onTap: () => Navigator.of(context).pop(),
-              child: Container(
-                width: 34, height: 34,
-                decoration: BoxDecoration(
-                  color: const Color(0xB30E0F14),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: Colors.white12),
-                ),
-                child: const Icon(Icons.arrow_back_ios_new_rounded,
-                    color: AppColors.smoke, size: 13),
-              ),
-            ),
-          ),
-
 
           // ── Dot indicators ────────────────────────────────────────
           Positioned(
@@ -248,45 +278,46 @@ class _Slide extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-    decoration: BoxDecoration(
-      gradient: LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-        colors: data.gradient,
-      ),
-    ),
+    color: const Color(0xFF0C0A08),
     child: Stack(
       fit: StackFit.expand,
       children: [
-        // Image layer (with opacity to blend with gradient)
-        Opacity(
-          opacity: 0.45,
-          child: data.path.startsWith('http')
-              ? Image.network(
-                  data.path,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => const SizedBox.shrink(),
-                )
-              : Image.asset(
-                  data.path,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => const SizedBox.shrink(),
-                ),
+        // Full-opacity image
+        data.path.startsWith('http')
+            ? Image.network(
+                data.path,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => const ColoredBox(color: Color(0xFF1A0C06)),
+              )
+            : Image.asset(
+                data.path,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => const ColoredBox(color: Color(0xFF1A0C06)),
+              ),
+
+        // Bottom gradient scrim for dot indicators + caption legibility
+        Positioned(
+          bottom: 0, left: 0, right: 0,
+          child: Container(
+            height: 90,
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.bottomCenter,
+                end: Alignment.topCenter,
+                colors: [Color(0xDD0C0A08), Color(0x000C0A08)],
+              ),
+            ),
+          ),
         ),
-        
-        // Icon overlay
-        Center(
-          child: Icon(data.icon, size: 52, color: data.color),
-        ),
-        
+
         // Caption
         Positioned(
-          bottom: 30, left: 14,
+          bottom: 30, left: 16,
           child: Text(
             data.label,
             style: GoogleFonts.lato(
               fontSize: 10, letterSpacing: 1,
-              color: AppColors.smoke.withValues(alpha: 0.55),
+              color: AppColors.smoke.withValues(alpha: 0.7),
             ),
           ),
         ),
@@ -432,7 +463,7 @@ class _EarthquakeCard extends StatelessWidget {
                 color: AppColors.brick2, size: 14),
             const SizedBox(width: 7),
             Text(
-              '2015 EARTHQUAKE & RESTORATION',
+              'EARTHQUAKE IMPACT & RESTORATION',
               style: GoogleFonts.lato(
                 fontSize: 9, fontWeight: FontWeight.w700,
                 color: AppColors.brick2, letterSpacing: 0.5,

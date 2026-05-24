@@ -124,7 +124,16 @@ class _RecentsSheetState extends State<RecentsSheet> {
                 final allMonuments = snapshot.data ?? [];
                 final recentIds = RecentsService.instance.getRecents();
                 final recentMonuments = recentIds
-                    .map((id) => allMonuments.firstWhere((m) => m.id == id, orElse: () => MonumentRegistry.findById(id) ?? allMonuments[0])) // simplified fallback
+                    .map((id) {
+                      if (allMonuments.isNotEmpty) {
+                        return allMonuments.firstWhere(
+                          (m) => m.id == id,
+                          orElse: () => MonumentRegistry.findById(id) ?? allMonuments.first,
+                        );
+                      }
+                      return MonumentRegistry.findById(id);
+                    })
+                    .whereType<MonumentModel>()
                     .toList();
 
                 return ListView(
@@ -217,8 +226,26 @@ class _RecentTile extends StatelessWidget {
 
   const _RecentTile({required this.monument, required this.onTap});
 
+  static const _iconMap = <String, IconData>{
+    'nyatapola_temple':   Icons.account_balance_rounded,
+    '55_window_palace':   Icons.house_rounded,
+    'golden_gate':        Icons.meeting_room_rounded,
+    'bhairavnath_temple': Icons.temple_hindu_rounded,
+    'lions_gate':         Icons.door_sliding_rounded,
+  };
+
+  String get _shortType {
+    final style = monument.architectureStyle.toLowerCase();
+    if (style.contains('pagoda')) return 'Pagoda';
+    if (style.contains('palace')) return 'Palace';
+    if (style.contains('gate') || style.contains('gateway')) return 'Gateway';
+    if (style.contains('temple')) return 'Temple';
+    return 'Monument';
+  }
+
   @override
   Widget build(BuildContext context) {
+    final icon = _iconMap[monument.id] ?? Icons.account_balance_rounded;
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -238,7 +265,7 @@ class _RecentTile extends StatelessWidget {
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(color: AppColors.brick.withValues(alpha: 0.3)),
               ),
-              child: const Icon(Icons.account_balance_rounded, color: AppColors.brick2, size: 18),
+              child: Icon(icon, color: AppColors.brick2, size: 18),
             ),
             const SizedBox(width: 11),
             Expanded(
@@ -251,7 +278,7 @@ class _RecentTile extends StatelessWidget {
                   ),
                   const SizedBox(height: 1),
                   Text(
-                    'Just now · 94% confidence',
+                    'Recently scanned',
                     style: GoogleFonts.lato(fontSize: 10, color: AppColors.ash),
                   ),
                 ],
@@ -265,7 +292,7 @@ class _RecentTile extends StatelessWidget {
                 border: Border.all(color: AppColors.gold.withValues(alpha: 0.25)),
               ),
               child: Text(
-                'Pagoda',
+                _shortType,
                 style: GoogleFonts.lato(fontSize: 9, color: AppColors.gold, fontWeight: FontWeight.w700),
               ),
             ),

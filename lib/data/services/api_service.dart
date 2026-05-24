@@ -1,14 +1,16 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../models/monument_model.dart';
+import '../../core/config/app_config.dart';
 import '../../core/utils/app_logger.dart';
 
 class ApiService {
-  // Use 10.0.2.2 for Android Emulator, 127.0.0.1 for iOS/Desktop
-  // Note: If testing on a physical device, use your machine's local IP (e.g. 192.168.x.x)
-  static const String baseUrl = 'http://192.168.101.4:8000';
+  static String get baseUrl => AppConfig.apiBaseUrl;
 
   Future<List<MonumentModel>> getMonuments() async {
+    if (!AppConfig.hasApi) {
+      throw Exception('API_BASE_URL not configured');
+    }
     final url = Uri.parse('$baseUrl/monuments');
     AppLogger.log('DEBUG: API Request -> GET $url');
     
@@ -30,6 +32,9 @@ class ApiService {
   }
 
   Future<MonumentModel> getMonumentDetail(String id) async {
+    if (!AppConfig.hasApi) {
+      throw Exception('API_BASE_URL not configured');
+    }
     final url = Uri.parse('$baseUrl/monuments/$id');
     AppLogger.log('DEBUG: API Request -> GET $url');
     

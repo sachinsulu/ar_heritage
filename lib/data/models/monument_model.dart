@@ -5,17 +5,22 @@ import 'package:flutter/material.dart';
 class MonumentGalleryItem {
   final String path;
   final String label;
-  final IconData icon;
+  final int iconCode;
   final Color color;
   final List<Color> gradient;
 
   const MonumentGalleryItem({
     required this.path,
     required this.label,
-    required this.icon,
+    required this.iconCode,
     required this.color,
     required this.gradient,
   });
+
+  IconData get icon {
+    // ignore: non_const_argument_for_const_parameter
+    return IconData(iconCode, fontFamily: 'MaterialIcons');
+  }
 
   factory MonumentGalleryItem.fromJson(Map<String, dynamic> json) {
     Color parseHex(String hex) {
@@ -27,9 +32,11 @@ class MonumentGalleryItem {
     return MonumentGalleryItem(
       path: json['path'] as String,
       label: json['label'] as String,
-      icon: IconData(json['icon_code'] as int, fontFamily: 'MaterialIcons'),
+      iconCode: json['icon_code'] as int,
       color: parseHex(json['hex_color'] as String),
-      gradient: (json['hex_gradient'] as List).map((h) => parseHex(h as String)).toList(),
+      gradient: (json['hex_gradient'] as List)
+          .map((h) => parseHex(h as String))
+          .toList(),
     );
   }
 }
@@ -100,7 +107,7 @@ class MonumentRegistry {
   static final Map<String, MonumentModel> monuments = {
     'nyatapola_temple': MonumentModel(
       id: 'nyatapola_temple',
-      name: 'Nyatapola Templ',
+      name: 'Nyatapola Temple',
       nepaliName: 'न्यातापोला मन्दिर',
       shortDescription: 'The tallest pagoda in Nepal — five tiers of timber and brick rising 30 m above Taumadhi Square.',
       fullHistory:
@@ -125,30 +132,9 @@ class MonumentRegistry {
         const MonumentGalleryItem(
           path: 'assets/images/monuments/nyatapola.jpg',
           label: 'CURRENT VIEW',
-          icon: Icons.account_balance_rounded,
+          iconCode: 62751, // Icons.account_balance_rounded
           color: Color(0x59C9A84C),
           gradient: [Color(0xFF1A0C06), Color(0xFF2A1A0A)],
-        ),
-        const MonumentGalleryItem(
-          path: 'assets/images/monuments/nyatapola_aerial.jpg',
-          label: 'AERIAL VIEW',
-          icon: Icons.photo_outlined,
-          color: Color(0x4D3DBF7A),
-          gradient: [Color(0xFF06100A), Color(0xFF0D2016)],
-        ),
-        const MonumentGalleryItem(
-          path: 'assets/images/monuments/nyatapola_pre2015.jpg',
-          label: 'PRE-2015 EARTHQUAKE',
-          icon: Icons.history_toggle_off_rounded,
-          color: Color(0x4DE24B4A),
-          gradient: [Color(0xFF100808), Color(0xFF1E1010)],
-        ),
-        const MonumentGalleryItem(
-          path: 'assets/images/monuments/nyatapola_restoration.jpg',
-          label: 'POST-RESTORATION 2017',
-          icon: Icons.construction_rounded,
-          color: Color(0x4D378ADD),
-          gradient: [Color(0xFF0A0E16), Color(0xFF0C1420)],
         ),
       ],
       latitude: 27.6719,
@@ -178,36 +164,7 @@ class MonumentRegistry {
         'Active restoration project since 2016',
       ],
       imagePath: 'assets/images/monuments/55_window_palace.jpg',
-      gallery: [
-        const MonumentGalleryItem(
-          path: 'assets/images/monuments/palace_current.jpg',
-          label: 'PALACE FACADE',
-          icon: Icons.house_rounded,
-          color: Color(0x59C9A84C),
-          gradient: [Color(0xFF1A0C06), Color(0xFF2A1A0A)],
-        ),
-        const MonumentGalleryItem(
-          path: 'assets/images/monuments/palace_detail.jpg',
-          label: 'WINDOW DETAIL',
-          icon: Icons.zoom_in_rounded,
-          color: Color(0x4D3DBF7A),
-          gradient: [Color(0xFF06100A), Color(0xFF0D2016)],
-        ),
-        const MonumentGalleryItem(
-          path: 'assets/images/monuments/palace_damage.jpg',
-          label: '2015 DAMAGE',
-          icon: Icons.history_toggle_off_rounded,
-          color: Color(0x4DE24B4A),
-          gradient: [Color(0xFF100808), Color(0xFF1E1010)],
-        ),
-        const MonumentGalleryItem(
-          path: 'assets/images/monuments/palace_work.jpg',
-          label: 'RECONSTRUCTION',
-          icon: Icons.engineering_rounded,
-          color: Color(0x4D378ADD),
-          gradient: [Color(0xFF0A0E16), Color(0xFF0C1420)],
-        ),
-      ],
+      gallery: const [],
       latitude: 27.6716,
       longitude: 85.4289,
     ),
@@ -235,36 +192,7 @@ class MonumentRegistry {
         'Torana (arch) features Garuda at apex',
       ],
       imagePath: 'assets/images/monuments/golden_gate.jpg',
-      gallery: [
-        const MonumentGalleryItem(
-          path: 'assets/images/monuments/gate_front.jpg',
-          label: 'MAIN ENTRANCE',
-          icon: Icons.meeting_room_rounded,
-          color: Color(0x59C9A84C),
-          gradient: [Color(0xFF1A0C06), Color(0xFF2A1A0A)],
-        ),
-        const MonumentGalleryItem(
-          path: 'assets/images/monuments/gate_top.jpg',
-          label: 'TORANA DETAIL',
-          icon: Icons.auto_awesome_rounded,
-          color: Color(0x4D3DBF7A),
-          gradient: [Color(0xFF06100A), Color(0xFF0D2016)],
-        ),
-        const MonumentGalleryItem(
-          path: 'assets/images/monuments/gate_texture.jpg',
-          label: 'REPOUSÉ TEXTURE',
-          icon: Icons.texture_rounded,
-          color: Color(0x4DE24B4A),
-          gradient: [Color(0xFF100808), Color(0xFF1E1010)],
-        ),
-        const MonumentGalleryItem(
-          path: 'assets/images/monuments/gate_context.jpg',
-          label: 'SQUARE CONTEXT',
-          icon: Icons.map_rounded,
-          color: Color(0x4D378ADD),
-          gradient: [Color(0xFF0A0E16), Color(0xFF0C1420)],
-        ),
-      ],
+      gallery: const [],
       latitude: 27.6717,
       longitude: 85.4290,
     ),
@@ -292,36 +220,7 @@ class MonumentRegistry {
         'Located in Taumadhi Tole square',
       ],
       imagePath: 'assets/images/monuments/bhairavnath.jpg',
-      gallery: [
-        const MonumentGalleryItem(
-          path: 'assets/images/monuments/bhairav_current.jpg',
-          label: 'PAGODA VIEW',
-          icon: Icons.temple_hindu_rounded,
-          color: Color(0x59C9A84C),
-          gradient: [Color(0xFF1A0C06), Color(0xFF2A1A0A)],
-        ),
-        const MonumentGalleryItem(
-          path: 'assets/images/monuments/bhairav_chariot.jpg',
-          label: 'BISKET JATRA',
-          icon: Icons.celebration_rounded,
-          color: Color(0x4D3DBF7A),
-          gradient: [Color(0xFF06100A), Color(0xFF0D2016)],
-        ),
-        const MonumentGalleryItem(
-          path: 'assets/images/monuments/bhairav_ruins.jpg',
-          label: '2015 RUINS',
-          icon: Icons.history_toggle_off_rounded,
-          color: Color(0x4DE24B4A),
-          gradient: [Color(0xFF100808), Color(0xFF1E1010)],
-        ),
-        const MonumentGalleryItem(
-          path: 'assets/images/monuments/bhairav_rebuilt.jpg',
-          label: 'RESTORED 2019',
-          icon: Icons.verified_rounded,
-          color: Color(0x4D378ADD),
-          gradient: [Color(0xFF0A0E16), Color(0xFF0C1420)],
-        ),
-      ],
+      gallery: const [],
       latitude: 27.6718,
       longitude: 85.4296,
     ),
@@ -349,36 +248,7 @@ class MonumentRegistry {
         'Carved from single blocks of stone',
       ],
       imagePath: 'assets/images/monuments/lions_gate.jpg',
-      gallery: [
-        const MonumentGalleryItem(
-          path: 'assets/images/monuments/lion_gate_full.jpg',
-          label: 'ENTRANCE VIEW',
-          icon: Icons.door_sliding_rounded,
-          color: Color(0x59C9A84C),
-          gradient: [Color(0xFF1A0C06), Color(0xFF2A1A0A)],
-        ),
-        const MonumentGalleryItem(
-          path: 'assets/images/monuments/lion_statue.jpg',
-          label: 'GUARDIAN LION',
-          icon: Icons.pets_rounded,
-          color: Color(0x4D3DBF7A),
-          gradient: [Color(0xFF06100A), Color(0xFF0D2016)],
-        ),
-        const MonumentGalleryItem(
-          path: 'assets/images/monuments/lion_shrine.jpg',
-          label: 'ADJACENT SHRINES',
-          icon: Icons.temple_buddhist_rounded,
-          color: Color(0x4DE24B4A),
-          gradient: [Color(0xFF100808), Color(0xFF1E1010)],
-        ),
-        const MonumentGalleryItem(
-          path: 'assets/images/monuments/lion_history.jpg',
-          label: 'DYOCHHEN STYLE',
-          icon: Icons.architecture_rounded,
-          color: Color(0x4D378ADD),
-          gradient: [Color(0xFF0A0E16), Color(0xFF0C1420)],
-        ),
-      ],
+      gallery: const [],
       latitude: 27.6715,
       longitude: 85.4285,
     ),

@@ -4,14 +4,29 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:camera/camera.dart';
-import 'package:flutter/foundation.dart' show ChangeNotifier, debugPrint;
+import 'package:flutter/foundation.dart' show ChangeNotifier, compute, debugPrint;
 import 'package:flutter/services.dart';
 
+import '../../../core/bootstrap/app_bootstrap.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/services/permission_service.dart';
 import '../../../core/utils/classifier.dart';
+import '../../../core/utils/classifier_preprocess.dart';
 import '../../../data/models/monument_model.dart';
 
-// ── State ─────────────────────────────────────────────────────────────────────
+// ── Camera setup ──────────────────────────────────────────────────────────────
+
+enum CameraSetupPhase {
+  checkingPermission,
+  permissionDenied,
+  permissionPermanentlyDenied,
+  initializing,
+  ready,
+  noCamera,
+  cameraError,
+}
+
+// ── Scan state ────────────────────────────────────────────────────────────────
 
 enum ScannerStatus { idle, scanning, detected, noMatch }
 
@@ -47,7 +62,6 @@ class ScannerState {
 
 // ── Cubit ─────────────────────────────────────────────────────────────────────
 
-/// A lightweight state-machine that drives the camera photo-capture classification.
 class ScannerCubit extends ChangeNotifier {
   ScannerState _state = const ScannerState();
   ScannerState get state => _state;
@@ -55,32 +69,66 @@ class ScannerCubit extends ChangeNotifier {
   CameraController? _cameraController;
   CameraController? get cameraController => _cameraController;
 
-  bool _scanLocked = false;   // prevents re-entrant scans
+  CameraSetupPhase _cameraPhase = CameraSetupPhase.checkingPermission;
+  CameraSetupPhase get cameraPhase => _cameraPhase;
 
-  // ── Initialise ──────────────────────────────────────────────────────────────
+  bool _scanLocked = false;
 
-  Future<void> init() async {
+  bool get classifierReady => AppBootstrap.classifierReady;
+  String? get classifierError => AppBootstrap.classifierError;
+
+  // ── Permission + camera ───────────────────────────────────────────────────
+
+  Future<void> requestPermissionAndInit() async {
+    _setCameraPhase(CameraSetupPhase.checkingPermission);
+
+    final outcome = await PermissionService.instance.requestCamera();
+    switch (outcome) {
+      case CameraPermissionOutcome.granted:
+        await _initCamera();
+      case CameraPermissionOutcome.denied:
+        _setCameraPhase(CameraSetupPhase.permissionDenied);
+      case CameraPermissionOutcome.permanentlyDenied:
+        _setCameraPhase(CameraSetupPhase.permissionPermanentlyDenied);
+    }
+  }
+
+  Future<void> retryPermission() => requestPermissionAndInit();
+
+  Future<void> openAppSettings() => PermissionService.instance.openSettings();
+
+  Future<void> _initCamera() async {
+    _setCameraPhase(CameraSetupPhase.initializing);
     try {
       final cameras = await availableCameras();
-      if (cameras.isEmpty) return;
+      if (cameras.isEmpty) {
+        _setCameraPhase(CameraSetupPhase.noCamera);
+        return;
+      }
 
+      await _cameraController?.dispose();
+      final camera = cameras.firstWhere(
+        (c) => c.lensDirection == CameraLensDirection.back,
+        orElse: () => cameras.first,
+      );
       _cameraController = CameraController(
-        cameras.first,
-        ResolutionPreset.medium,
+        camera,
+        ResolutionPreset.high,
         enableAudio: false,
       );
 
       await _cameraController!.initialize();
-      notifyListeners();
+      _setCameraPhase(CameraSetupPhase.ready);
     } catch (e) {
       debugPrint('[ScannerCubit] Camera init failed: $e');
+      _setCameraPhase(CameraSetupPhase.cameraError);
     }
   }
 
-  // ── Public API ────────────────────────────────────────────────────────────
+  // ── Scan ──────────────────────────────────────────────────────────────────
 
-  /// Trigger a single-shot picture capture and classification.
   Future<void> triggerScan() async {
+    if (!classifierReady) return;
     if (_scanLocked) return;
     if (_state.isScanning) return;
     final ctrl = _cameraController;
@@ -89,19 +137,25 @@ class ScannerCubit extends ChangeNotifier {
     _scanLocked = true;
     _emit(_state.copyWith(status: ScannerStatus.scanning, clearResult: true));
 
-    // Brief animation window before capture & inference
     await Future.delayed(
       Duration(milliseconds: AppConstants.scanAnimationMs),
     );
 
     try {
-      // Capture direct high-quality JPEG snapshot
       final XFile file = await ctrl.takePicture();
       final Uint8List bytes = await file.readAsBytes();
 
-      // Run inference on the captured picture bytes
+      final inputFlat = await compute(preprocessImageBytes, bytes);
+      if (inputFlat == null) {
+        _emit(_state.copyWith(
+          status: ScannerStatus.noMatch,
+          clearResult: true,
+        ));
+        return;
+      }
+
       final ClassificationResult? result =
-          Classifier.instance.classify(bytes);
+          Classifier.instance.classifyFromTensor(inputFlat);
 
       if (result == null) {
         _emit(_state.copyWith(
@@ -111,7 +165,6 @@ class ScannerCubit extends ChangeNotifier {
         return;
       }
 
-      // Check confidence and filter out 'others' category
       if (result.isConfident && result.label != 'others') {
         final monument = MonumentRegistry.findById(result.label);
         if (monument != null) {
@@ -140,21 +193,28 @@ class ScannerCubit extends ChangeNotifier {
     }
   }
 
-  /// Dismiss the result card and return to idle.
   void clearResult() {
     _emit(_state.copyWith(status: ScannerStatus.idle, clearResult: true));
   }
 
-  // ── Lifecycle ─────────────────────────────────────────────────────────────
-
-  void handleAppResumed() {
-    // Standard camera controllers handle resume natively, but we notify listeners to be safe
+  Future<void> retryClassifier() async {
+    final ok = await Classifier.instance.init();
+    AppBootstrap.classifierReady = ok;
+    AppBootstrap.classifierError =
+        ok ? null : Classifier.instance.initError;
     notifyListeners();
   }
 
-  void handleAppInactive() {
-    // No-op
+  void handleAppResumed() {
+    if (_cameraPhase == CameraSetupPhase.permissionDenied ||
+        _cameraPhase == CameraSetupPhase.permissionPermanentlyDenied) {
+      requestPermissionAndInit();
+      return;
+    }
+    notifyListeners();
   }
+
+  void handleAppInactive() {}
 
   @override
   void dispose() {
@@ -162,7 +222,10 @@ class ScannerCubit extends ChangeNotifier {
     super.dispose();
   }
 
-  // ── Internal ──────────────────────────────────────────────────────────────
+  void _setCameraPhase(CameraSetupPhase phase) {
+    _cameraPhase = phase;
+    notifyListeners();
+  }
 
   void _emit(ScannerState newState) {
     _state = newState;

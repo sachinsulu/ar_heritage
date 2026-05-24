@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'core/bootstrap/app_bootstrap.dart';
 import 'core/theme/app_theme.dart';
 import 'core/utils/app_router.dart';
 import 'core/utils/classifier.dart';
@@ -17,7 +18,11 @@ void main() async {
     statusBarIconBrightness: Brightness.light,
   ));
 
-  await Classifier.instance.init();
+  final classifierOk = await Classifier.instance.init();
+  AppBootstrap.classifierReady = classifierOk;
+  AppBootstrap.classifierError =
+      classifierOk ? null : Classifier.instance.initError;
+
   await RecentsService.instance.init();
 
   runApp(const ArHeritageApp());

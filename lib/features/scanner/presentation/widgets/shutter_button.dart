@@ -5,17 +5,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../../core/theme/app_theme.dart';
 
-/// Google-Lens-style shutter button.
-///
-/// - Idle:    white outer ring + small gold filled circle
-/// - Scanning: animated arc spinner replaces the outer ring
-/// - Detected: brief green flash, then returns to idle appearance
+/// Heritage mockup shutter: gold ring, white fill, camera icon; spinner while scanning.
 class ShutterButton extends StatefulWidget {
   const ShutterButton({
     super.key,
     required this.isScanning,
     required this.onTap,
-    this.size = 72.0,
+    this.size = 76.0,
   });
 
   final bool isScanning;
@@ -83,29 +79,58 @@ class _ShutterButtonState extends State<ShutterButton>
   @override
   Widget build(BuildContext context) {
     final s = widget.size;
+    final innerDiameter = s - 22;
+
     return GestureDetector(
       onTap: widget.isScanning ? null : _handleTap,
       child: SizedBox(
         width: s,
         height: s,
-        child: AnimatedBuilder(
-          animation: _ctrl,
-          builder: (_, __) => CustomPaint(
-            painter: _ShutterPainter(
-              isScanning: widget.isScanning,
-              rotation: _rotation.value,
-              arcLength: _arcLength.value,
-              size: s,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            AnimatedBuilder(
+              animation: _ctrl,
+              builder: (_, __) => CustomPaint(
+                size: Size(s, s),
+                painter: _ShutterRingPainter(
+                  isScanning: widget.isScanning,
+                  rotation: _rotation.value,
+                  arcLength: _arcLength.value,
+                  size: s,
+                ),
+              ),
             ),
-          ),
+            if (!widget.isScanning)
+              Container(
+                width: innerDiameter,
+                height: innerDiameter,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withValues(alpha: 0.96),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.18),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Icon(
+                  Icons.photo_camera_rounded,
+                  color: AppColors.gold,
+                  size: innerDiameter * 0.38,
+                ),
+              ),
+          ],
         ),
       ),
     );
   }
 }
 
-class _ShutterPainter extends CustomPainter {
-  const _ShutterPainter({
+class _ShutterRingPainter extends CustomPainter {
+  const _ShutterRingPainter({
     required this.isScanning,
     required this.rotation,
     required this.arcLength,
@@ -120,22 +145,18 @@ class _ShutterPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size canvasSize) {
     final center = Offset(size / 2, size / 2);
-    final outerRadius = size / 2 - 3;
-    final innerRadius = size / 2 - 14;
+    final outerRadius = size / 2 - 2;
 
     if (isScanning) {
-      // ── Animated spinner arc ─────────────────────────────────────────────
-      // Dim base ring
       canvas.drawCircle(
         center,
         outerRadius,
         Paint()
-          ..color = Colors.white.withValues(alpha: 0.15)
+          ..color = AppColors.gold.withValues(alpha: 0.25)
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 3.5,
+          ..strokeWidth = 4,
       );
 
-      // Spinning arc
       final arcRect = Rect.fromCircle(center: center, radius: outerRadius);
       canvas.drawArc(
         arcRect,
@@ -145,47 +166,23 @@ class _ShutterPainter extends CustomPainter {
         Paint()
           ..color = AppColors.gold
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 3.5
+          ..strokeWidth = 4
           ..strokeCap = StrokeCap.round,
       );
-
-      // Inner filled circle (pulsing alpha)
-      final pulseAlpha = 0.5 + 0.5 * math.sin(rotation * 2);
-      canvas.drawCircle(
-        center,
-        innerRadius,
-        Paint()..color = AppColors.gold.withValues(alpha: pulseAlpha * 0.4),
-      );
     } else {
-      // ── Idle: solid white ring + gold dot ────────────────────────────────
-      // Outer white ring
       canvas.drawCircle(
         center,
         outerRadius,
         Paint()
-          ..color = Colors.white.withValues(alpha: 0.90)
+          ..color = AppColors.gold
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 3.0,
-      );
-
-      // Inner gold-tinted filled circle
-      canvas.drawCircle(
-        center,
-        innerRadius,
-        Paint()..color = AppColors.gold.withValues(alpha: 0.25),
-      );
-
-      // Small gold dot in center
-      canvas.drawCircle(
-        center,
-        7,
-        Paint()..color = AppColors.gold,
+          ..strokeWidth = 4,
       );
     }
   }
 
   @override
-  bool shouldRepaint(_ShutterPainter old) =>
+  bool shouldRepaint(_ShutterRingPainter old) =>
       old.isScanning != isScanning ||
       old.rotation != rotation ||
       old.arcLength != arcLength;

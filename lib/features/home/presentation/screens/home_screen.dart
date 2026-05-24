@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:ar_heritage/core/constants/app_constants.dart';
 import 'package:ar_heritage/core/services/recents_service.dart';
 import 'package:ar_heritage/core/theme/app_theme.dart';
 import 'package:ar_heritage/data/models/monument_model.dart';
@@ -110,6 +111,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   (context, index) => _MonumentTile(
                     monument: _recents[index],
                     index: index,
+                    isRecent: true,
                     onTap: () {
                       context.push('/monument/${_recents[index].id}').then((_) => _loadRecents());
                     },
@@ -144,6 +146,67 @@ class _HomeScreenState extends State<HomeScreen> {
                   );
                 }
 
+                if (snapshot.hasError || (snapshot.data?.isEmpty ?? true)) {
+                  return SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: Center(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 40),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.account_balance_outlined,
+                                size: 48, color: AppColors.gold.withValues(alpha: 0.3)),
+                            const SizedBox(height: 16),
+                            Text(
+                              'No landmarks found',
+                              textAlign: TextAlign.center,
+                              style: GoogleFonts.cinzel(
+                                fontSize: 15,
+                                color: AppColors.smoke,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              'Could not load monument data.\nCheck your connection and try again.',
+                              textAlign: TextAlign.center,
+                              style: GoogleFonts.lato(
+                                fontSize: 12,
+                                color: AppColors.ash,
+                                height: 1.5,
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            GestureDetector(
+                              onTap: () => setState(() {
+                                _monumentsFuture = _fetchMonuments();
+                              }),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+                                decoration: BoxDecoration(
+                                  color: AppColors.surf2,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: AppColors.border),
+                                ),
+                                child: Text(
+                                  'RETRY',
+                                  style: GoogleFonts.lato(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColors.mist,
+                                    letterSpacing: 1.5,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                }
+
                 final monuments = snapshot.data ?? [];
 
                 return SliverList(
@@ -171,41 +234,82 @@ class _HomeScreenState extends State<HomeScreen> {
 
 // ── Scan CTA button ──────────────────────────────────────────────────────────
 
-class _ScanButton extends StatelessWidget {
+class _ScanButton extends StatefulWidget {
   final VoidCallback onTap;
   const _ScanButton({required this.onTap});
 
   @override
-  Widget build(BuildContext context) => GestureDetector(
-    onTap: onTap,
-    child: Container(
-      height: 54,
-      decoration: BoxDecoration(
-        color: AppColors.brick,
-        borderRadius: BorderRadius.circular(14),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.brick.withValues(alpha: 0.35),
-            blurRadius: 18, offset: const Offset(0, 7),
+  State<_ScanButton> createState() => _ScanButtonState();
+}
+
+class _ScanButtonState extends State<_ScanButton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _scale;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 90),
+      reverseDuration: const Duration(milliseconds: 160),
+    );
+    _scale = Tween<double>(begin: 1.0, end: 0.96).animate(
+      CurvedAnimation(parent: _ctrl, curve: Curves.easeIn),
+    );
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: (_) => _ctrl.forward(),
+      onTapUp: (_) {
+        _ctrl.reverse();
+        widget.onTap();
+      },
+      onTapCancel: () => _ctrl.reverse(),
+      child: ScaleTransition(
+        scale: _scale,
+        child: Container(
+          height: 54,
+          decoration: BoxDecoration(
+            color: AppColors.brick,
+            borderRadius: BorderRadius.circular(14),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.brick.withValues(alpha: 0.35),
+                blurRadius: 18,
+                offset: const Offset(0, 7),
+              ),
+            ],
           ),
-        ],
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.camera_alt_outlined, color: Colors.white, size: 18),
-          const SizedBox(width: 10),
-          Text(
-            'SCAN A MONUMENT',
-            style: GoogleFonts.lato(
-              fontSize: 11, fontWeight: FontWeight.w700,
-              color: Colors.white, letterSpacing: 2.5,
-            ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.camera_alt_outlined, color: Colors.white, size: 18),
+              const SizedBox(width: 10),
+              Text(
+                'SCAN A MONUMENT',
+                style: GoogleFonts.lato(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                  letterSpacing: 2.5,
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 // ── Small icon button (header) ───────────────────────────────────────────────
@@ -219,13 +323,13 @@ class _IBtn extends StatelessWidget {
   Widget build(BuildContext context) => GestureDetector(
     onTap: onTap,
     child: Container(
-      width: 40, height: 40,
+      width: 48, height: 48,
       decoration: BoxDecoration(
         color: AppColors.surf2,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(13),
         border: Border.all(color: AppColors.border),
       ),
-      child: Icon(icon, color: AppColors.smoke, size: 18),
+      child: Icon(icon, color: AppColors.smoke, size: 20),
     ),
   );
 }
@@ -236,11 +340,13 @@ class _MonumentTile extends StatelessWidget {
   final MonumentModel monument;
   final int index;
   final VoidCallback onTap;
+  final bool isRecent;
 
   const _MonumentTile({
     required this.monument,
     required this.index,
     required this.onTap,
+    this.isRecent = false,
   });
 
   static const _iconMap = <String, IconData>{
@@ -270,9 +376,18 @@ class _MonumentTile extends StatelessWidget {
         margin: const EdgeInsets.fromLTRB(20, 0, 20, 8),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
-          color: AppColors.surf,
+          color: isRecent
+              ? AppColors.gold.withValues(alpha: 0.06)
+              : AppColors.surf,
           borderRadius: BorderRadius.circular(13),
-          border: Border.all(color: AppColors.border),
+          border: isRecent
+              ? Border(
+                  left: BorderSide(color: AppColors.gold.withValues(alpha: 0.7), width: 2.5),
+                  top: BorderSide(color: AppColors.gold.withValues(alpha: 0.18), width: 0.5),
+                  right: BorderSide(color: AppColors.gold.withValues(alpha: 0.18), width: 0.5),
+                  bottom: BorderSide(color: AppColors.gold.withValues(alpha: 0.18), width: 0.5),
+                )
+              : Border.all(color: AppColors.border),
         ),
         child: Row(
           children: [
@@ -309,21 +424,46 @@ class _MonumentTile extends StatelessWidget {
               ),
             ),
 
-            // Badge chip
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(
-                color: AppColors.gold.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: AppColors.gold.withValues(alpha: 0.25)),
-              ),
-              child: Text(
-                badge,
-                style: GoogleFonts.lato(
-                  fontSize: 9, fontWeight: FontWeight.w700,
-                  color: AppColors.gold,
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                if (AppConstants.cvDetectableIds.contains(monument.id))
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 4),
+                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: AppColors.green.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: AppColors.green.withValues(alpha: 0.35),
+                      ),
+                    ),
+                    child: Text(
+                      'CV SCAN',
+                      style: GoogleFonts.lato(
+                        fontSize: 8,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.green,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: AppColors.gold.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: AppColors.gold.withValues(alpha: 0.25)),
+                  ),
+                  child: Text(
+                    badge,
+                    style: GoogleFonts.lato(
+                      fontSize: 9, fontWeight: FontWeight.w700,
+                      color: AppColors.gold,
+                    ),
+                  ),
                 ),
-              ),
+              ],
             ),
           ],
         ),
